@@ -25,7 +25,7 @@
       --soft: #f7f5fb;
       --lavender: #e7ddff;
       --lavender-2: #f4f0ff;
-      --lime: #c8ff47;
+      --lime: #c5ee15;
       --lime-2: #efffc8;
       --white: #fff;
       --danger: #e35162;
@@ -2240,7 +2240,7 @@
       const win = window.open('', '_blank');
       if (!win) { toast('Ventana bloqueada', 'Permití ventanas emergentes para imprimir.', 'error'); return; }
       win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(quote.quoteNumber)}</title><style>
-        body{font:14px Arial,sans-serif;color:#242231;margin:50px}header{display:flex;justify-content:space-between;border-bottom:3px solid #242231;padding-bottom:24px}h1{margin:0}.logo{font-size:22px;font-weight:800}.meta{text-align:right;color:#666}section{margin-top:35px}table{width:100%;border-collapse:collapse;margin-top:25px}th,td{padding:12px;border-bottom:1px solid #ddd;text-align:left}th{background:#f5f3fa}.num{text-align:right}.total{width:320px;margin:25px 0 0 auto}.total p{display:flex;justify-content:space-between}.grand{font-size:20px;font-weight:bold;border-top:2px solid #242231;padding-top:12px}.print{position:fixed;right:24px;top:24px;padding:10px 16px;border:0;border-radius:8px;background:#c8ff47;font-weight:bold}@media print{.print{display:none}body{margin:0}}</style></head><body>
+        body{font:14px Arial,sans-serif;color:#242231;margin:50px}header{display:flex;justify-content:space-between;border-bottom:3px solid #242231;padding-bottom:24px}h1{margin:0}.logo{font-size:22px;font-weight:800}.meta{text-align:right;color:#666}section{margin-top:35px}table{width:100%;border-collapse:collapse;margin-top:25px}th,td{padding:12px;border-bottom:1px solid #ddd;text-align:left}th{background:#f5f3fa}.num{text-align:right}.total{width:320px;margin:25px 0 0 auto}.total p{display:flex;justify-content:space-between}.grand{font-size:20px;font-weight:bold;border-top:2px solid #242231;padding-top:12px}.print{position:fixed;right:24px;top:24px;padding:10px 16px;border:0;border-radius:8px;background:#c5ee15;font-weight:bold}@media print{.print{display:none}body{margin:0}}</style></head><body>
         <button class="print" onclick="window.print()">Imprimir / Guardar PDF</button>
         <header><div><div class="logo">CORE 3D CRM</div><p>${esc(state.settings.companyName || '')}</p></div><div class="meta"><strong>${esc(quote.quoteNumber)}</strong><p>Fecha: ${localDate(quote.createdAt)}</p><p>Válida hasta: ${localDate(quote.validUntil)}</p></div></header>
         <section><h2>Cotización para ${esc(contact.name || 'Cliente')}</h2><p>${esc(contact.company || '')}</p><p>${esc(contact.email || '')}</p></section>
