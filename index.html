@@ -1429,10 +1429,13 @@
 
   <script>
     /*
-     * Pegá aquí la URL que termina en /exec después de implementar Code.gs
-     * como Aplicación web en Google Apps Script.
+     * CONFIGURACIÓN:
+     * Pegá aquí la URL completa que termina en /exec después de implementar
+     * Código.gs como Aplicación web en Google Apps Script.
+     * Si dejás el texto de ejemplo, la app funciona en modo demostración local
+     * y no enviará solicitudes al backend ni guardará datos en Google Sheets.
      */
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwasjuWUioBHLwxUMKJoiZz5GxlHQxUoB8d6ebb_QT4buyA9nVqcHt7we1MqGrmTLpP/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylEXq_Oj0-XXIp3tzI-1r_MFMesncjkAHnRXBvgE4207lGCRlCVXkyaUBWrsQHembi/exec';
 
     const STAGES = ['Nuevo', 'Contactado', 'Propuesta', 'Negociación', 'Ganado'];
     const ALL_STAGES = [...STAGES, 'Perdido'];
