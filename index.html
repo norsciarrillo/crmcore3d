@@ -1634,6 +1634,100 @@
       .topbar { gap: 10px; }
     }
 
+
+    /* Correcciones de contraste en modo oscuro: respetar los colores semánticos de los botones. */
+    html[data-theme="dark"] .btn-lime,
+    html[data-theme="dark"] .btn-lime:hover,
+    html[data-theme="dark"] .btn-lime:focus-visible {
+      color: #151615 !important;
+      background: #c5ee15 !important;
+      border-color: #c5ee15 !important;
+    }
+    html[data-theme="dark"] .btn-lime i,
+    html[data-theme="dark"] .btn-lime svg,
+    html[data-theme="dark"] .btn-lime span { color: #151615 !important; }
+    html[data-theme="dark"] .nav-btn.active,
+    html[data-theme="dark"] .nav-btn.active i,
+    html[data-theme="dark"] .nav-btn.active span {
+      color: #151615 !important;
+      background-color: #c5ee15;
+    }
+    html[data-theme="dark"] .nav-btn.active i,
+    html[data-theme="dark"] .nav-btn.active span { background: transparent; }
+    html[data-theme="dark"] .tag.dark {
+      color: #f0eff6 !important;
+      background: #393647 !important;
+      border-color: #514b62;
+    }
+    html[data-theme="dark"] .btn:not(.btn-lime):not(.btn-white):not(.btn-soft):not(.btn-danger):not(.theme-switch) {
+      color: #ffffff !important;
+      background: #151615 !important;
+      border-color: #151615 !important;
+    }
+    html[data-theme="dark"] .btn:not(.btn-lime):not(.btn-white):not(.btn-soft):not(.btn-danger):not(.theme-switch) i,
+    html[data-theme="dark"] .btn:not(.btn-lime):not(.btn-white):not(.btn-soft):not(.btn-danger):not(.theme-switch) svg {
+      color: inherit;
+    }
+    html[data-theme="dark"] .icon-action {
+      color: #dedbe9;
+      background: #302c3d;
+      border-color: #4b465c;
+    }
+    html[data-theme="dark"] .icon-action:hover {
+      color: #f0eff6;
+      background: #403852;
+    }
+    html[data-theme="dark"] .logout-btn { color: #c4c0d1; }
+    html[data-theme="dark"] .logout-btn i { color: inherit; }
+    html[data-theme="dark"] .metric-icon,
+    html[data-theme="dark"] .alert-icon,
+    html[data-theme="dark"] .timeline-icon,
+    html[data-theme="dark"] .empty-state-icon {
+      color: #e8e4f4;
+      border-color: #4b465c;
+    }
+    html[data-theme="dark"] .metric-icon i,
+    html[data-theme="dark"] .alert-icon i,
+    html[data-theme="dark"] .timeline-icon i,
+    html[data-theme="dark"] .empty-state-icon i { color: inherit; }
+
+    /* Switch Day/Night: movimiento más orgánico, con desaceleración suave y sin salto visual. */
+    .theme-switch { overflow: visible; }
+    .mode-switch-track {
+      transition:
+        background-color .55s cubic-bezier(.22, 1, .36, 1),
+        border-color .55s cubic-bezier(.22, 1, .36, 1),
+        box-shadow .55s cubic-bezier(.22, 1, .36, 1);
+    }
+    .mode-switch-thumb {
+      will-change: transform;
+      transition:
+        transform .58s cubic-bezier(.22, 1, .36, 1),
+        background-color .4s ease,
+        box-shadow .4s ease;
+    }
+    .mode-switch-thumb i {
+      backface-visibility: hidden;
+      will-change: opacity, transform;
+      transition:
+        opacity .32s ease-in-out,
+        transform .48s cubic-bezier(.22, 1, .36, 1),
+        color .35s ease;
+    }
+    .mode-switch-sun { transform-origin: 50% 50%; }
+    .mode-switch-moon { transform-origin: 50% 50%; }
+    .theme-switch[aria-checked="true"] .mode-switch-thumb {
+      transform: translateX(30px);
+    }
+    .theme-switch:active .mode-switch-thumb { box-shadow: 0 2px 5px rgba(24,20,40,.24); }
+    @media (prefers-reduced-motion: reduce) {
+      .mode-switch-track,
+      .mode-switch-thumb,
+      .mode-switch-thumb i {
+        transition-duration: .01ms !important;
+      }
+    }
+
 </style>
 </head>
 <body>
