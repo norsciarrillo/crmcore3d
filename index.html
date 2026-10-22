@@ -244,6 +244,11 @@
     .btn:active { transform: translateY(0); }
     .btn:disabled { cursor: not-allowed; opacity: .55; transform: none; box-shadow: none; }
     .btn-lime { color: var(--ink); background: var(--lime); }
+    /* El lima pertenece a la paleta original; texto e iconos siempre conservan contraste oscuro. */
+    .btn-lime,
+    .btn-lime i,
+    .btn-lime svg,
+    .btn-lime span { color: #151615 !important; }
     .btn-white { color: var(--ink); background: white; border: 1px solid var(--line); }
     .btn-soft { color: var(--ink); background: var(--soft); }
     .btn-danger { color: var(--danger); background: var(--danger-soft); }
@@ -944,6 +949,8 @@
       display: grid;
       place-items: center;
       padding: 20px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
       background: rgba(29,26,42,.56);
       backdrop-filter: blur(5px);
       animation: fadeIn .16s ease;
@@ -961,6 +968,15 @@
       animation: modalIn .2s ease;
     }
     .modal.wide { width: min(820px, 100%); }
+    /* El formulario ocupa el espacio disponible; el cuerpo se desplaza y las acciones quedan visibles. */
+    .modal { min-height: 0; }
+    .modal form#modalForm {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
     .modal-head {
       display: flex;
       align-items: flex-start;
@@ -980,8 +996,17 @@
       color: var(--muted);
       background: var(--soft);
     }
-    .modal-body { padding: 20px 22px; overflow-y: auto; }
+    .modal-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 20px 22px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
     .modal-foot {
+      flex: 0 0 auto;
       display: flex;
       justify-content: flex-end;
       gap: 9px;
@@ -1131,10 +1156,15 @@
       .modal-backdrop { padding: 0; align-items: end; }
       .modal, .modal.wide {
         width: 100%;
+        max-height: 92dvh;
         max-height: 92vh;
+        min-height: 0;
         border-radius: 22px 22px 0 0;
         padding-bottom: env(safe-area-inset-bottom);
       }
+      .modal form#modalForm { min-height: 0; }
+      .modal-body { min-height: 0; }
+      .modal-backdrop { overflow-y: auto; }
       .modal-head, .modal-body { padding-inline: 17px; }
       .modal-foot { padding-inline: 17px; }
       .modal-foot .btn { flex: 1; }
@@ -1695,24 +1725,24 @@
     .theme-switch { overflow: visible; }
     .mode-switch-track {
       transition:
-        background-color .55s cubic-bezier(.22, 1, .36, 1),
-        border-color .55s cubic-bezier(.22, 1, .36, 1),
-        box-shadow .55s cubic-bezier(.22, 1, .36, 1);
+        background-color .35s cubic-bezier(.4, 0, .2, 1),
+        border-color .35s cubic-bezier(.4, 0, .2, 1),
+        box-shadow .35s cubic-bezier(.4, 0, .2, 1);
     }
     .mode-switch-thumb {
       will-change: transform;
       transition:
-        transform .58s cubic-bezier(.22, 1, .36, 1),
-        background-color .4s ease,
-        box-shadow .4s ease;
+        transform .35s cubic-bezier(.4, 0, .2, 1),
+        background-color .35s cubic-bezier(.4, 0, .2, 1),
+        box-shadow .35s cubic-bezier(.4, 0, .2, 1);
     }
     .mode-switch-thumb i {
       backface-visibility: hidden;
       will-change: opacity, transform;
       transition:
-        opacity .32s ease-in-out,
-        transform .48s cubic-bezier(.22, 1, .36, 1),
-        color .35s ease;
+        opacity .22s ease-in-out,
+        transform .35s cubic-bezier(.4, 0, .2, 1),
+        color .35s cubic-bezier(.4, 0, .2, 1);
     }
     .mode-switch-sun { transform-origin: 50% 50%; }
     .mode-switch-moon { transform-origin: 50% 50%; }
@@ -2052,6 +2082,8 @@
         quotes: data.quotes || [],
         sellers: data.sellers || []
       });
+      const userTheme = state.user && state.settings['theme_' + state.user.id];
+      if (userTheme === 'dark' || userTheme === 'light') setTheme(userTheme, false);
     }
 
     async function mutate(action, payload, successMessage) {
@@ -2822,6 +2854,11 @@
         return { ok: true, ...JSON.parse(JSON.stringify(state._demoData)) };
       }
       if (action === 'logout') return { ok: true };
+      if (action === 'saveTheme') {
+        const theme = payload.theme === 'dark' ? 'dark' : 'light';
+        try { localStorage.setItem('core3d_theme', theme); } catch (_) {}
+        return { ok: true, theme };
+      }
       const data = state._demoData ||= demoSeed();
       const now = new Date().toISOString();
       const id = prefix => `${prefix}-${crypto.randomUUID().slice(0,8).toUpperCase()}`;
@@ -2854,7 +2891,7 @@
     }
 
     // Apariencia clara/oscura persistida localmente en este navegador.
-    function setTheme(theme) {
+    function setTheme(theme, syncServer = false) {
       const normalized = theme === 'dark' ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', normalized);
       const toggle = document.getElementById('themeSwitch');
@@ -2867,6 +2904,12 @@
       const themeMeta = document.querySelector('meta[name="theme-color"]');
       if (themeMeta) themeMeta.setAttribute('content', normalized === 'dark' ? '#17151f' : '#ede7ff');
       try { localStorage.setItem('core3d_theme', normalized); } catch (_) {}
+      // El cambio visual es inmediato; la preferencia se sincroniza en segundo plano.
+      if (syncServer && state.user && state.token) {
+        api('saveTheme', { theme: normalized }).catch(error => {
+          console.warn('No se pudo sincronizar la preferencia de apariencia:', error);
+        });
+      }
     }
     (function initTheme() {
       let saved = 'light';
@@ -2874,7 +2917,7 @@
       setTheme(saved);
       const toggle = document.getElementById('themeSwitch');
       if (toggle) toggle.addEventListener('click', () => {
-        setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+        setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark', true);
       });
     })();
 
