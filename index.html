@@ -969,7 +969,8 @@
     }
     .modal.wide { width: min(820px, 100%); }
     /* El formulario ocupa el espacio disponible; el cuerpo se desplaza y las acciones quedan visibles. */
-    .modal { min-height: 0; }
+    .modal { min-height: 0; height: auto; }
+    @media (max-height: 700px) { .modal { max-height: 94vh; } .modal-head { padding-block: 14px; } .modal-body { padding-block: 14px; } .modal-foot { padding-block: 11px; } }
     .modal form#modalForm {
       display: flex;
       flex: 1 1 auto;
@@ -2063,6 +2064,8 @@
         await loadData();
         showApp();
       } catch (error) {
+        // Si el login fue correcto pero falló bootstrap, no conservar un token parcial.
+        if (state.token) { sessionStorage.removeItem('nexo_token'); state.token = ''; state.user = null; }
         el.loginError.textContent = error.message;
       } finally {
         button.disabled = false;
@@ -2109,6 +2112,9 @@
       const name = state.user?.name || 'Usuario';
       $('#sidebarUser').textContent = name;
       $('#sidebarRole').textContent = state.user?.role === 'admin' ? 'Administrador' : 'Vendedor';
+      const sellersNav = $('[data-view="sellers"]');
+      if (sellersNav) sellersNav.hidden = state.user?.role !== 'admin';
+      if (state.user?.role !== 'admin' && state.view === 'sellers') state.view = 'dashboard';
       $('#sidebarAvatar').textContent = initials(name);
       $('#topAvatar').textContent = initials(name);
       const hour = new Date().getHours();
@@ -2656,7 +2662,7 @@
         <div class="form-grid">
           <div class="field"><label>Nombre *</label><input name="name" required maxlength="120"></div>
           <div class="field"><label>Email *</label><input name="email" type="email" required></div>
-          <div class="field"><label>Contraseña inicial *</label><input name="password" type="password" minlength="8" required><small>Mínimo 8 caracteres.</small></div>
+          <div class="field"><label>Contraseña inicial *</label><input name="password" type="password" minlength="12" required><small>Mínimo 12 caracteres.</small></div>
           <div class="field"><label>Rol</label><select name="role"><option value="seller">Vendedor</option><option value="admin">Administrador</option></select></div>
         </div>`,
         form => mutate('saveSeller', { data: { ...formObject(form), active: true } }, 'Vendedor creado')
