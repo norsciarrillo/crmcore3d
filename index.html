@@ -969,8 +969,7 @@
     }
     .modal.wide { width: min(820px, 100%); }
     /* El formulario ocupa el espacio disponible; el cuerpo se desplaza y las acciones quedan visibles. */
-    .modal { min-height: 0; height: auto; }
-    @media (max-height: 700px) { .modal { max-height: 94vh; } .modal-head { padding-block: 14px; } .modal-body { padding-block: 14px; } .modal-foot { padding-block: 11px; } }
+    .modal { min-height: 0; }
     .modal form#modalForm {
       display: flex;
       flex: 1 1 auto;
@@ -1759,6 +1758,46 @@
       }
     }
 
+
+    /* Personalización local y accesible: conserva la paleta original como valor predeterminado. */
+    :root { --color-primario: var(--ink); --color-acento: var(--lime); --escala-tipografia: 1; }
+    body { font-size: calc(14px * var(--escala-tipografia)); }
+    .btn-lime, .brand-mark { background: var(--color-acento); color: var(--color-primario); }
+    .theme-panel-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+    .theme-option { border:1px solid var(--line); border-radius:16px; padding:16px; background:var(--white); color:var(--ink); text-align:left; display:grid; gap:12px; }
+    .theme-option[aria-pressed="true"] { outline:3px solid rgba(99,116,231,.25); border-color:var(--blue); }
+    .theme-preview { display:flex; height:54px; overflow:hidden; border-radius:10px; background:var(--soft); }
+    .theme-preview span:first-child { width:34%; background:var(--preview-primary,#151615); }
+    .theme-preview span:last-child { flex:1; background:var(--preview-accent,#c5ee15); }
+    .appearance-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-top:20px; }
+    .settings-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    .ai-result { margin-top:18px; display:grid; gap:12px; }
+    .ai-result img { display:block; max-width:100%; max-height:720px; object-fit:contain; border:1px solid var(--line); border-radius:14px; background:var(--soft); }
+    .ai-result a { width:max-content; max-width:100%; overflow-wrap:anywhere; }
+    .settings-note { color:var(--muted); font-size:12px; line-height:1.6; }
+    .top-icon.mobile-menu { display:none; align-items:center; justify-content:center; }
+    .avatar { display:grid; place-items:center; flex-shrink:0; }
+    .modal-card, .modal-panel, .modal-dialog, .modal-shell, .modal-content { max-height:calc(100dvh - 32px); overflow-y:auto; }
+    #modalRoot .modal-overlay, #modalRoot .modal-backdrop { overflow-y:auto; align-items:flex-start; padding:16px; }
+    #modalRoot .modal-card, #modalRoot .modal-panel { width:min(760px,100%); margin:auto; }
+    #modalRoot .modal-actions, #modalRoot .modal-footer { position:sticky; bottom:0; background:inherit; padding-top:12px; z-index:2; }
+    @media (max-width: 820px) { .top-icon.mobile-menu { display:inline-flex; } }
+    html[data-theme="dark"] { --ink:#f3f1f8; --ink-2:#e2deef; --muted:#aaa5ba; --line:#393546; --soft:#252230; --white:#211f2a; --lavender:#302b40; --lavender-2:#272333; --danger-soft:#43252c; --warning-soft:#403222; --success-soft:#20392e; color-scheme:dark; }
+    html[data-theme="dark"] body { background:linear-gradient(145deg,#17151f 0,#211e2b 100%); color:var(--ink); }
+    html[data-theme="dark"] .sidebar, html[data-theme="dark"] .topbar, html[data-theme="dark"] .data-card, html[data-theme="dark"] .metric-card, html[data-theme="dark"] .theme-option { background:#211f2a; color:var(--ink); border-color:var(--line); }
+    html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] textarea { background:#2a2735; color:#f3f1f8; border-color:#484255; }
+    html[data-theme="dark"] .field label { color:#e3deef; }
+    html[data-theme="dark"] .nav-btn { color:#bdb7cc; }
+    html[data-theme="dark"] .nav-btn.active { background:#343044; color:#f3f1f8; }
+    html[data-theme="dark"] .modal-card, html[data-theme="dark"] .modal-panel, html[data-theme="dark"] .modal-dialog { background:#211f2a; color:var(--ink); }
+
+
+    /* NEXO_MODAL_SCROLL_FIX: conserva el pie de acciones accesible en pantallas bajas. */
+    #modalRoot .modal-backdrop, #modalRoot .modal-overlay, #modalRoot .modal-wrap { overflow-y:auto; }
+    #modalRoot .modal-card, #modalRoot .modal-content, #modalRoot .modal-dialog { max-height:calc(100dvh - 32px); overflow-y:auto; }
+    @media (min-width:821px) { .top-icon.mobile-menu { display:none !important; } }
+    @media (max-width:820px) { .top-icon.mobile-menu { display:inline-flex !important; align-items:center; justify-content:center; } }
+    /* /NEXO_MODAL_SCROLL_FIX */
 </style>
 </head>
 <body>
@@ -1829,6 +1868,9 @@
         <button class="nav-btn" data-view="conversations"><i class="bi bi-chat-left-text"></i><span>Conversaciones</span></button>
         <button class="nav-btn" data-view="quotes"><i class="bi bi-receipt"></i><span>Cotizaciones</span></button>
         <button class="nav-btn" data-view="sellers"><i class="bi bi-bar-chart"></i><span>Vendedores</span></button>
+        <button class="nav-btn" data-view="appearance"><i class="bi bi-palette"></i><span>Apariencia</span></button>
+        <button class="nav-btn" data-view="settings"><i class="bi bi-sliders"></i><span>Configuración</span></button>
+        <button class="nav-btn" data-view="ai"><i class="bi bi-stars"></i><span>Generador IA</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="install-card">
@@ -1910,7 +1952,10 @@
       followups: ['Seguimientos', 'Lo que tu equipo necesita hacer a continuación'],
       conversations: ['Conversaciones', 'Historial unificado de llamadas, mensajes y reuniones'],
       quotes: ['Cotizaciones', 'Propuestas comerciales listas para enviar'],
-      sellers: ['Panel de vendedores', 'Resultados y actividad de cada integrante']
+      sellers: ['Panel de vendedores', 'Resultados y actividad de cada integrante'],
+      appearance: ['Apariencia', 'Personalizá los colores y la lectura de tu espacio'],
+      settings: ['Configuración', 'Preferencias comerciales y herramientas del CRM'],
+      ai: ['Generador IA', 'Creá imágenes con Gemini o un proveedor compatible']
     };
 
     const DEMO_MODE = !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(APPS_SCRIPT_URL);
@@ -2064,8 +2109,6 @@
         await loadData();
         showApp();
       } catch (error) {
-        // Si el login fue correcto pero falló bootstrap, no conservar un token parcial.
-        if (state.token) { sessionStorage.removeItem('nexo_token'); state.token = ''; state.user = null; }
         el.loginError.textContent = error.message;
       } finally {
         button.disabled = false;
@@ -2112,9 +2155,6 @@
       const name = state.user?.name || 'Usuario';
       $('#sidebarUser').textContent = name;
       $('#sidebarRole').textContent = state.user?.role === 'admin' ? 'Administrador' : 'Vendedor';
-      const sellersNav = $('[data-view="sellers"]');
-      if (sellersNav) sellersNav.hidden = state.user?.role !== 'admin';
-      if (state.user?.role !== 'admin' && state.view === 'sellers') state.view = 'dashboard';
       $('#sidebarAvatar').textContent = initials(name);
       $('#topAvatar').textContent = initials(name);
       const hour = new Date().getHours();
@@ -2141,6 +2181,31 @@
       </header>`;
     }
 
+    function renderAppearance() {
+      const saved = readAppearance();
+      const presets = [
+        {id:'original',name:'CORE 3D original',primary:'#151615',accent:'#c5ee15'},
+        {id:'ocean',name:'Océano',primary:'#15324b',accent:'#56c7d9'},
+        {id:'nature',name:'Naturaleza',primary:'#1d4534',accent:'#a7d96c'},
+        {id:'fire',name:'Fuego',primary:'#4a2020',accent:'#ff9d55'},
+        {id:'indigo',name:'Índigo',primary:'#29264b',accent:'#b9a7f7'}
+      ];
+      return pageHead('Apariencia','Los cambios se guardan en este navegador y se aplican al instante.', `<button class="btn btn-soft" data-action="reset-appearance"><i class="bi bi-arrow-counterclockwise"></i> Restaurar plantilla</button>`) +
+      `<section class="data-card"><h2>Paletas</h2><p class="settings-note">La plantilla original de CORE 3D sigue siendo la opción predeterminada. La personalización visual no cambia datos de Google Sheets.</p><div class="theme-panel-grid">${presets.map(p=>`<button class="theme-option" type="button" data-preset="${p.id}" aria-pressed="${saved.preset===p.id}"><div class="theme-preview" style="--preview-primary:${p.primary};--preview-accent:${p.accent}"><span></span><span></span></div><strong>${p.name}</strong><small>${p.primary} · ${p.accent}</small></button>`).join('')}</div><div class="appearance-controls"><div class="field"><label for="primaryColor">Color primario</label><input id="primaryColor" type="color" value="${attr(saved.primary)}"></div><div class="field"><label for="accentColor">Color de acento</label><input id="accentColor" type="color" value="${attr(saved.accent)}"></div><div class="field"><label for="fontScale">Escala tipográfica</label><select id="fontScale"><option value="0.9" ${saved.scale==='0.9'?'selected':''}>Compacta (90%)</option><option value="1" ${saved.scale==='1'?'selected':''}>Normal (100%)</option><option value="1.1" ${saved.scale==='1.1'?'selected':''}>Grande (110%)</option><option value="1.2" ${saved.scale==='1.2'?'selected':''}>Muy grande (120%)</option></select></div></div><div class="settings-actions"><button class="btn btn-lime" data-action="save-appearance"><i class="bi bi-check2"></i> Aplicar cambios</button></div></section>`;
+    }
+    function renderSettings() {
+      const admin = state.user && state.user.role === 'admin';
+      return pageHead('Configuración','Preferencias comerciales, exportación y mantenimiento.', '') +
+      `<section class="data-card"><h2>Preferencias comerciales</h2><p class="settings-note">Estas opciones se guardan en la hoja Configuracion. Solo el administrador puede modificarlas.</p><div class="form-grid"><div class="field"><label>Nombre de la empresa</label><input id="settingCompany" value="${attr(state.settings.companyName || 'Mi empresa')}" ${admin?'':'disabled'}></div><div class="field"><label>Días sin actividad para alertas</label><input id="settingStaleDays" type="number" min="1" max="365" value="${attr(state.settings.staleDays || 7)}" ${admin?'':'disabled'}></div><div class="field"><label>Moneda predeterminada</label><select id="settingCurrency" ${admin?'':'disabled'}>${['ARS','USD','EUR','UYU','CLP','MXN'].map(c=>`<option ${c===(state.settings.currency||'ARS')?'selected':''}>${c}</option>`).join('')}</select></div><div class="field"><label>Validez predeterminada de cotizaciones (días)</label><input id="settingQuoteDays" type="number" min="1" max="365" value="${attr(state.settings.quoteValidityDays || 15)}" ${admin?'':'disabled'}></div></div><div class="settings-actions">${admin?'<button class="btn btn-lime" data-action="save-settings"><i class="bi bi-save"></i> Guardar configuración</button>':''}<button class="btn btn-soft" data-action="export-data"><i class="bi bi-download"></i> Exportar JSON</button><button class="btn btn-soft" data-action="export-data-csv"><i class="bi bi-filetype-csv"></i> Exportar CSV</button><button class="btn btn-soft" data-action="import-contacts"><i class="bi bi-upload"></i> Importar contactos CSV</button><input id="contactsCsvInput" type="file" accept=".csv,text/csv" hidden><button class="btn btn-soft" data-action="run-automations" ${admin?'':'disabled'}><i class="bi bi-lightning"></i> Ejecutar reglas automáticas</button></div><p class="settings-note">La exportación incluye únicamente los registros a los que tu cuenta tiene acceso. La automatización genera alertas de oportunidades inactivas y cotizaciones vencidas.</p></section><section class="data-card" style="margin-top:16px"><h2>Estado del espacio</h2><p>Usuario: <strong>${esc(state.user?.name || '')}</strong> · Rol: <strong>${admin?'Administrador':'Vendedor'}</strong></p><p class="settings-note">La autenticación y el formato actual de contraseñas se conservan. No es necesario restablecer contraseñas ni volver a ejecutar configurarCRM() para usar estas mejoras.</p></section>`;
+    }
+
+    function renderAI() {
+      const admin = state.user && state.user.role === 'admin';
+      const s = state.settings || {};
+      return pageHead('Generador IA','Las claves se guardan en Script Properties del servidor y nunca se devuelven al navegador.', '') +
+      `<section class="data-card"><h2><i class="bi bi-sliders"></i> Conexión del proveedor</h2><p class="settings-note">Configuración exclusiva para administradores. Si dejás una clave vacía, se conserva la guardada. Para el proveedor externo se espera una API compatible con OpenAI Images.</p><div class="form-grid"><div class="field"><label>Proveedor activo</label><select id="aiProvider" ${admin?'':'disabled'}><option value="gemini" ${(s.aiProvider||'gemini')==='gemini'?'selected':''}>Google Gemini</option><option value="external" ${s.aiProvider==='external'?'selected':''}>Proveedor externo compatible</option></select></div><div class="field"><label>Clave API de Gemini</label><input id="geminiApiKey" type="password" autocomplete="new-password" placeholder="${s.geminiConfigured?'Clave guardada; dejá vacío para conservar':'Pegá la clave de Gemini'}" ${admin?'':'disabled'}><small>Estado: ${s.geminiConfigured?'configurada':'sin configurar'}</small></div><div class="field"><label>Clave API externa</label><input id="externalApiKey" type="password" autocomplete="new-password" placeholder="${s.externalConfigured?'Clave guardada; dejá vacío para conservar':'Pegá la clave del proveedor'}" ${admin?'':'disabled'}><small>Estado: ${s.externalConfigured?'configurada':'sin configurar'}</small></div><div class="field"><label>URL base del proveedor externo</label><input id="externalBaseUrl" type="url" value="${attr(s.externalBaseUrl||'')}" placeholder="https://api.proveedor.com" ${admin?'':'disabled'}></div><div class="field"><label>Modelo externo</label><input id="externalModel" value="${attr(s.externalModel||'gpt-image-1')}" placeholder="gpt-image-1" ${admin?'':'disabled'}></div></div>${admin?'<div class="settings-actions"><button class="btn btn-lime" data-action="save-ai-config"><i class="bi bi-shield-lock"></i> Guardar conexión</button></div>':''}</section><section class="data-card" style="margin-top:16px"><h2><i class="bi bi-magic"></i> Crear imagen</h2><div class="field"><label for="aiPrompt">Descripción de la imagen</label><textarea id="aiPrompt" maxlength="4000" placeholder="Describí el estilo, sujeto, composición, iluminación, relación de aspecto y uso de la imagen…"></textarea></div><div class="settings-actions"><button class="btn btn-lime" data-action="generate-ai-image"><i class="bi bi-stars"></i> Generar imagen</button></div><div id="aiResult" class="ai-result" aria-live="polite"></div></section>`;
+    }
+
     function render() {
       if (!state.user) return;
       const meta = VIEW_META[state.view] || VIEW_META.dashboard;
@@ -2155,8 +2220,15 @@
         followups: renderFollowUps,
         conversations: renderConversations,
         quotes: renderQuotes,
-        sellers: renderSellers
+        sellers: renderSellers,
+        appearance: renderAppearance,
+        settings: renderSettings,
+        ai: renderAI
       };
+      $$('.nav-btn').forEach(button => {
+        button.classList.toggle('active', button.dataset.view === state.view);
+        if (button.dataset.view === 'sellers') button.hidden = !state.user || state.user.role !== 'admin';
+      });
       el.main.innerHTML = (views[state.view] || views.dashboard)();
       bindViewEvents();
     }
@@ -2662,7 +2734,7 @@
         <div class="form-grid">
           <div class="field"><label>Nombre *</label><input name="name" required maxlength="120"></div>
           <div class="field"><label>Email *</label><input name="email" type="email" required></div>
-          <div class="field"><label>Contraseña inicial *</label><input name="password" type="password" minlength="12" required><small>Mínimo 12 caracteres.</small></div>
+          <div class="field"><label>Contraseña inicial *</label><input name="password" type="password" minlength="8" required><small>Mínimo 8 caracteres.</small></div>
           <div class="field"><label>Rol</label><select name="role"><option value="seller">Vendedor</option><option value="admin">Administrador</option></select></div>
         </div>`,
         form => mutate('saveSeller', { data: { ...formObject(form), active: true } }, 'Vendedor creado')
@@ -2693,6 +2765,72 @@
       win.document.close();
     }
 
+    async function saveAIConfigFromForm() {
+      const data = { provider: $('#aiProvider')?.value || 'gemini', geminiApiKey: $('#geminiApiKey')?.value || '', externalApiKey: $('#externalApiKey')?.value || '', externalBaseUrl: $('#externalBaseUrl')?.value || '', externalModel: $('#externalModel')?.value || '' };
+      const saved = await mutate('saveAIConfig', { data }, 'Conexión de IA guardada');
+      if (saved) { $('#geminiApiKey').value=''; $('#externalApiKey').value=''; toast('Claves protegidas','Las claves quedaron guardadas en propiedades del servidor.'); }
+    }
+    async function generateAIImageFromUI() {
+      const prompt = ($('#aiPrompt')?.value || '').trim();
+      if (!prompt) { toast('Falta la descripción','Escribí qué imagen querés generar.','error'); return; }
+      const result = $('#aiResult'); if (result) result.innerHTML = '<p class="settings-note">Generando imagen… esto puede tardar unos segundos.</p>';
+      setLoading(true, 'Generando imagen con IA…');
+      try {
+        const response = await api('generateAIImage', { data:{prompt} });
+        if (result) {
+          const src = response.imageData ? `data:${response.mimeType || 'image/png'};base64,${response.imageData}` : response.imageUrl;
+          result.innerHTML = `<p>${esc(response.description || 'Imagen generada correctamente.')}</p><img src="${attr(src)}" alt="Imagen generada por IA"><a class="btn btn-soft" href="${attr(src)}" download="nexo-imagen-ia.png"><i class="bi bi-download"></i> Descargar imagen</a>`;
+        }
+      } catch (error) { if (result) result.innerHTML = `<p class="form-error">${esc(error.message)}</p>`; }
+      finally { setLoading(false); }
+    }
+    async function saveSettingsFromForm() {
+      const data = { companyName: $('#settingCompany')?.value || 'Mi empresa', staleDays: toNumber($('#settingStaleDays')?.value || 7), currency: $('#settingCurrency')?.value || 'ARS', quoteValidityDays: toNumber($('#settingQuoteDays')?.value || 15) };
+      const saved = await mutate('saveSettings', { data }, 'Configuración guardada');
+      if (saved) { state.settings = { ...state.settings, ...data }; render(); }
+    }
+    async function exportDataFile() {
+      try {
+        const result = await api('exportData');
+        const blob = new Blob([JSON.stringify(result.data, null, 2)], {type:'application/json;charset=utf-8'});
+        const url = URL.createObjectURL(blob); const link = document.createElement('a');
+        link.href = url; link.download = 'nexo-crm-export-' + new Date().toISOString().slice(0,10) + '.json';
+        document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+        toast('Exportación preparada','Se descargaron los registros disponibles para tu cuenta.');
+      } catch (error) { toast('Error al exportar', error.message, 'error'); }
+    }
+    async function exportDataCSVFile() {
+      try {
+        const result = await api('exportData');
+        const records = [];
+        Object.entries(result.data || {}).forEach(([collection, items]) => (items || []).forEach(item => records.push({collection, ...item})));
+        const keys = [...new Set(records.flatMap(item => Object.keys(item)))];
+        const cell = value => {
+          const text = value == null ? '' : (typeof value === 'object' ? JSON.stringify(value) : String(value));
+          return '"' + text.replace(/"/g, '""') + '"';
+        };
+        const csv = '\uFEFF' + [keys.map(cell).join(','), ...records.map(item => keys.map(key => cell(item[key])).join(','))].join('\r\n');
+        const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+        const link = document.createElement('a'); link.href=url; link.download='nexo-crm-export-' + new Date().toISOString().slice(0,10) + '.csv';
+        document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+        toast('Exportación CSV preparada', records.length + ' registros exportados.');
+      } catch (error) { toast('Error al exportar', error.message, 'error'); }
+    }
+    async function importContactsCSVFile(file) {
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { toast('Archivo demasiado grande','El CSV debe pesar menos de 2 MB.','error'); return; }
+      try {
+        setLoading(true, 'Validando e importando contactos…');
+        const csvText = await file.text();
+        const result = await api('importContacts', { csvText });
+        await loadData(); render();
+        const errorCount = (result.errors || []).length;
+        toast('Importación finalizada', `${result.imported} importados · ${result.skipped} omitidos · ${errorCount} errores`, errorCount ? 'error' : 'success');
+        if (errorCount) console.warn('Errores de importación CSV:', result.errors);
+      } catch (error) { toast('No se pudo importar', error.message, 'error'); }
+      finally { setLoading(false); const input=$('#contactsCsvInput'); if(input) input.value=''; }
+    }
+
     function handleAction(action) {
       const actions = {
         'new-contact': () => contactModal(),
@@ -2700,7 +2838,16 @@
         'new-followup': () => followUpModal(),
         'new-conversation': () => conversationModal(),
         'new-quote': () => quoteModal(),
-        'new-seller': () => sellerModal()
+        'new-seller': () => sellerModal(),
+        'reset-appearance': () => { const a={preset:'original',primary:'#151615',accent:'#c5ee15',scale:'1'}; applyAppearance(a); render(); toast('Apariencia restaurada','Se recuperó la paleta original.'); },
+        'save-appearance': () => { const a={preset:'custom',primary:$('#primaryColor')?.value||'#151615',accent:$('#accentColor')?.value||'#c5ee15',scale:$('#fontScale')?.value||'1'}; applyAppearance(a); render(); toast('Apariencia aplicada','La preferencia quedó guardada en este navegador.'); },
+        'save-settings': () => saveSettingsFromForm(),
+        'export-data': () => exportDataFile(),
+        'export-data-csv': () => exportDataCSVFile(),
+        'import-contacts': () => $('#contactsCsvInput')?.click(),
+        'run-automations': () => mutate('runAutomations', {}, 'Reglas automáticas ejecutadas'),
+        'save-ai-config': () => saveAIConfigFromForm(),
+        'generate-ai-image': () => generateAIImageFromUI()
       };
       actions[action]?.();
     }
@@ -2755,6 +2902,14 @@
         if (print) printQuote(print.dataset.printQuote);
         const complete = event.target.closest('[data-complete]');
         if (complete) mutate('completeFollowUp', { id: complete.dataset.complete, completed: true }, 'Seguimiento completado');
+        const preset = event.target.closest('[data-preset]');
+        if (preset) {
+          const presets = { original:{primary:'#151615',accent:'#c5ee15'}, ocean:{primary:'#15324b',accent:'#56c7d9'}, nature:{primary:'#1d4534',accent:'#a7d96c'}, fire:{primary:'#4a2020',accent:'#ff9d55'}, indigo:{primary:'#29264b',accent:'#b9a7f7'} };
+          const p = presets[preset.dataset.preset]; if (p) { const a={...readAppearance(),...p,preset:preset.dataset.preset}; applyAppearance(a); render(); }
+        }
+      });
+      document.addEventListener('change', event => {
+        if (event.target && event.target.id === 'contactsCsvInput' && event.target.files && event.target.files[0]) importContactsCSVFile(event.target.files[0]);
       });
       document.addEventListener('keydown', event => {
         if (event.key === 'Escape') { if (el.modal.innerHTML) closeModal(); else closeDrawer(); }
@@ -2892,10 +3047,30 @@
         item = save('quotes', { ...payload.data, quoteNumber: payload.data.id ? data.quotes.find(x => x.id === payload.data.id)?.quoteNumber : `COT-2026-${String(data.quotes.length + 1).padStart(4,'0')}`, subtotal, taxAmount, total: subtotal + taxAmount, itemsJson: JSON.stringify(items.map(x => ({...x,total:toNumber(x.quantity)*toNumber(x.price)}))), owner: state.user.name }, 'COT');
       }
       if (action === 'saveSeller') item = save('sellers', { ...payload.data, role: payload.data.role || 'seller' }, 'USR');
+      if (action === 'saveSettings') { Object.assign(data.settings, payload.data || {}); }
+      if (action === 'saveAIConfig') { Object.assign(data.settings, {aiProvider:payload.data.provider,geminiConfigured:!!payload.data.geminiApiKey,externalConfigured:!!(payload.data.externalApiKey&&payload.data.externalBaseUrl),externalBaseUrl:payload.data.externalBaseUrl,externalModel:payload.data.externalModel}); return {ok:true}; }
+      if (action === 'generateAIImage') throw new Error('La generación real de imágenes requiere el backend publicado y un proveedor configurado.');
+      if (action === 'exportData') return { ok:true, data:{ Contactos:data.contacts, Oportunidades:data.opportunities, Seguimientos:data.followUps, Conversaciones:data.conversations, Cotizaciones:data.quotes } };
+      if (action === 'importContacts') throw new Error('La importación CSV requiere conectar el backend real de Google Apps Script.');
+      if (action === 'runAutomations') return { ok:true, notificationsCreated:0, checkedAt:new Date().toISOString() };
       localStorage.setItem('nexo_demo_data', JSON.stringify(data));
       return { ok: true, item };
     }
 
+    function readAppearance() {
+      const defaults = { preset:'original', primary:'#151615', accent:'#c5ee15', scale:'1' };
+      try { return { ...defaults, ...JSON.parse(localStorage.getItem('nexo_appearance') || '{}') }; }
+      catch (_) { return defaults; }
+    }
+    function applyAppearance(appearance) {
+      const a = { ...readAppearance(), ...(appearance || {}) };
+      document.documentElement.style.setProperty('--color-primario', a.primary || '#151615');
+      document.documentElement.style.setProperty('--color-acento', a.accent || '#c5ee15');
+      document.documentElement.style.setProperty('--escala-tipografia', a.scale || '1');
+      document.documentElement.style.setProperty('--lime', a.accent || '#c5ee15');
+      document.documentElement.style.setProperty('--ink', document.documentElement.dataset.theme === 'dark' ? '#f3f1f8' : (a.primary || '#151615'));
+      try { localStorage.setItem('nexo_appearance', JSON.stringify(a)); } catch (_) {}
+    }
     // Apariencia clara/oscura persistida localmente en este navegador.
     function setTheme(theme, syncServer = false) {
       const normalized = theme === 'dark' ? 'dark' : 'light';
@@ -2910,6 +3085,7 @@
       const themeMeta = document.querySelector('meta[name="theme-color"]');
       if (themeMeta) themeMeta.setAttribute('content', normalized === 'dark' ? '#17151f' : '#ede7ff');
       try { localStorage.setItem('core3d_theme', normalized); } catch (_) {}
+      applyAppearance(readAppearance());
       // El cambio visual es inmediato; la preferencia se sincroniza en segundo plano.
       if (syncServer && state.user && state.token) {
         api('saveTheme', { theme: normalized }).catch(error => {
@@ -2921,6 +3097,7 @@
       let saved = 'light';
       try { saved = localStorage.getItem('core3d_theme') || 'light'; } catch (_) {}
       setTheme(saved);
+      applyAppearance(readAppearance());
       const toggle = document.getElementById('themeSwitch');
       if (toggle) toggle.addEventListener('click', () => {
         setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark', true);
