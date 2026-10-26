@@ -1828,6 +1828,7 @@
         <button class="nav-btn" data-view="conversations"><i class="bi bi-chat-left-text"></i><span>Conversaciones</span></button>
         <button class="nav-btn" data-view="quotes"><i class="bi bi-receipt"></i><span>Cotizaciones</span></button>
         <button class="nav-btn" data-view="sellers"><i class="bi bi-bar-chart"></i><span>Vendedores</span></button>
+        <button class="nav-btn" data-view="audit" id="navAudit" hidden><i class="bi bi-shield-check"></i><span>Auditoría</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="install-card">
@@ -1909,7 +1910,8 @@
       followups: ['Seguimientos', 'Lo que tu equipo necesita hacer a continuación'],
       conversations: ['Conversaciones', 'Historial unificado de llamadas, mensajes y reuniones'],
       quotes: ['Cotizaciones', 'Propuestas comerciales listas para enviar'],
-      sellers: ['Panel de vendedores', 'Resultados y actividad de cada integrante']
+      sellers: ['Panel de vendedores', 'Resultados y actividad de cada integrante'],
+      audit: ['Auditoría del Sistema', 'Historial detallado de operaciones, cambios y seguridad']
     };
 
     const DEMO_MODE = !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(APPS_SCRIPT_URL);
@@ -1923,6 +1925,7 @@
       conversations: [],
       quotes: [],
       sellers: [],
+      auditLogs: [],
       view: 'dashboard',
       search: '',
       filter: 'Todos',
@@ -1956,6 +1959,7 @@
       return String(value || 'Nexo').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
     }
     function toNumber(value) { const number = Number(value); return Number.isFinite(number) ? number : 0; }
+    function toBoolean(value) { return value === true || String(value).toLowerCase() === 'true' || value === 1; }
     function localDate(value, options = {}) {
       if (!value) return 'Sin fecha';
       const date = new Date(value.length === 10 ? value + 'T12:00:00' : value);
@@ -2045,7 +2049,9 @@
       catch (_) { throw new Error('Google Apps Script devolvió una respuesta inválida. Revisá la implementación.'); }
       if (!result.ok) {
         if (result.code === 'UNAUTHORIZED' && action !== 'login') logout(false);
-        throw new Error(result.error || 'No se pudo completar la operación.');
+        const err = new Error(result.error || 'No se pudo completar la operación.');
+        err.code = result.code;
+        throw err;
       }
       return result;
     }
@@ -2080,7 +2086,8 @@
         followUps: data.followUps || [],
         conversations: data.conversations || [],
         quotes: data.quotes || [],
-        sellers: data.sellers || []
+        sellers: data.sellers || [],
+        auditLogs: data.auditLogs || []
       });
       const userTheme = state.user && state.settings['theme_' + state.user.id];
       if (userTheme === 'dark' || userTheme === 'light') setTheme(userTheme, false);
@@ -2096,7 +2103,15 @@
         toast(successMessage || 'Cambios guardados', 'La información ya está actualizada.');
         return true;
       } catch (error) {
-        toast('No se pudo guardar', error.message, 'error');
+        if (error.code === 'DUPLICATE_CONTACT') {
+          if (confirm(`${error.message}\n\n¿Querés registrar el contacto de todas formas?`)) {
+            const nextPayload = { ...payload };
+            if (nextPayload.data) nextPayload.data.allowDuplicate = true;
+            return await mutate(action, nextPayload, successMessage);
+          }
+        } else {
+          toast('No se pudo guardar', error.message, 'error');
+        }
         return false;
       } finally {
         setLoading(false);
@@ -2112,6 +2127,9 @@
       $('#sidebarRole').textContent = roleMap[state.user?.role] || 'Vendedor';
       $('#sidebarAvatar').textContent = initials(name);
       $('#topAvatar').textContent = initials(name);
+      const canAudit = state.user?.role === 'admin' || state.user?.role === 'supervisor';
+      const navAudit = $('#navAudit');
+      if (navAudit) navAudit.hidden = !canAudit;
       const hour = new Date().getHours();
       $('#greeting').textContent = `${hour < 12 ? 'Buen día' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'}, ${name.split(' ')[0]}`;
       $('#todayLabel').textContent = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
@@ -2141,7 +2159,11 @@
       const meta = VIEW_META[state.view] || VIEW_META.dashboard;
       $$('.nav-btn').forEach(button => button.classList.toggle('active', button.dataset.view === state.view));
       $('#followBadge').textContent = pendingFollowUps().length;
-      $('#alertDot').hidden = staleOpportunities().length === 0;
+      const overdueAlerts = pendingFollowUps().filter(isOverdue).length;
+      const staleAlerts = staleOpportunities().length;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const expiredAlerts = state.quotes.filter(q => q.validUntil && q.validUntil < todayStr && !['Aceptada', 'Rechazada'].includes(q.status)).length;
+      $('#alertDot').hidden = (overdueAlerts + staleAlerts + expiredAlerts) === 0;
       document.title = `${meta[0]} · CORE 3D CRM`;
       const views = {
         dashboard: renderDashboard,
@@ -2150,7 +2172,8 @@
         followups: renderFollowUps,
         conversations: renderConversations,
         quotes: renderQuotes,
-        sellers: renderSellers
+        sellers: renderSellers,
+        audit: renderAudit
       };
       el.main.innerHTML = (views[state.view] || views.dashboard)();
       bindViewEvents();
@@ -2159,20 +2182,23 @@
     function renderDashboard() {
       const open = state.opportunities.filter(item => !['Ganado', 'Perdido'].includes(item.stage));
       const won = state.opportunities.filter(item => item.stage === 'Ganado');
+      const closed = state.opportunities.filter(item => ['Ganado', 'Perdido'].includes(item.stage));
       const pipelineValue = open.reduce((sum, item) => sum + toNumber(item.value), 0);
+      const weightedValue = open.reduce((sum, item) => sum + (toNumber(item.value) * (toNumber(item.probability) / 100)), 0);
       const wonValue = won.reduce((sum, item) => sum + toNumber(item.value), 0);
+      const conversionRate = closed.length ? Math.round((won.length / closed.length) * 100) : 0;
       const overdue = pendingFollowUps().filter(isOverdue);
       return pageHead(
         `Todo bajo control, ${esc((state.user.name || '').split(' ')[0])}`,
-        'Priorizá oportunidades y seguimientos desde un único panel.',
+        'Priorizá oportunidades, pronósticos y seguimientos desde un único panel comercial.',
         `<button class="btn btn-white" data-action="new-followup"><i class="bi bi-calendar-plus"></i> Seguimiento</button>
          <button class="btn btn-lime" data-action="new-opportunity"><i class="bi bi-plus-lg"></i> Oportunidad</button>`
       ) + `
       <section class="metric-grid">
         ${metricCard('Pipeline activo', money(pipelineValue, 'ARS', true), `${open.length} oportunidades abiertas`, 'funnel', '#efeaff')}
+        ${metricCard('Pronóstico ponderado', money(weightedValue, 'ARS', true), 'Cierre proyectado según probabilidad', 'graph-up-arrow', '#dff7ff')}
         ${metricCard('Ventas ganadas', money(wonValue, 'ARS', true), `${won.length} negocios cerrados`, 'trophy', '#efffc8')}
-        ${metricCard('Seguimientos', pendingFollowUps().length, `${overdue.length} vencidos`, 'calendar2-check', '#e9f5ff')}
-        ${metricCard('Alertas', staleOpportunities().length, 'Oportunidades sin actividad', 'exclamation-triangle', '#fff1dd')}
+        ${metricCard('Efectividad de cierre', `${conversionRate}%`, `${overdue.length} seguimientos vencidos`, 'pie-chart', '#fff1dd')}
       </section>
       <section class="dashboard-grid">
         <div class="stack">
@@ -2192,7 +2218,7 @@
             ${agendaList()}
           </article>
           <article class="panel">
-            <div class="panel-head"><div><h2>Necesitan atención</h2><p>Oportunidades estancadas</p></div><button class="panel-link" data-view-jump="pipeline">Ver todas</button></div>
+            <div class="panel-head"><div><h2>Necesitan atención</h2><p>Oportunidades estancadas y alertas</p></div><button class="panel-link" data-view-jump="pipeline">Ver todas</button></div>
             ${alertsList()}
           </article>
         </div>
@@ -2219,7 +2245,7 @@
       const months = Array.from({ length: 6 }, (_, index) => {
         const d = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
         const value = state.opportunities.filter(item => {
-          const when = new Date(item.updatedAt || item.createdAt);
+          const when = new Date(item.wonAt || item.updatedAt || item.createdAt);
           return item.stage === 'Ganado' && when.getMonth() === d.getMonth() && when.getFullYear() === d.getFullYear();
         }).reduce((sum, item) => sum + toNumber(item.value), 0);
         return { date: d, value };
@@ -2305,7 +2331,7 @@
       const stale = staleOpportunities().some(opp => opp.id === item.id);
       return `<article class="deal-card" draggable="true" data-deal-id="${attr(item.id)}">
         <div class="deal-card-top"><h3>${esc(item.title)}</h3><button class="deal-menu" data-edit-opportunity="${attr(item.id)}" title="Editar"><i class="bi bi-three-dots"></i></button></div>
-        <p class="deal-company">${esc(contact?.company || contact?.name || 'Sin contacto asociado')}</p>
+        <p class="deal-company">${contact ? `<span data-view-contact="${attr(contact.id)}" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;" title="Ver ficha 360° del cliente">${esc(contact?.company || contact?.name)}</span>` : 'Sin contacto asociado'}</p>
         <div class="deal-value">${money(item.value)}</div>
         <div class="deal-meta">
           <span class="deal-owner"><span class="mini-avatar">${initials(item.owner)}</span>${esc(item.owner || 'Sin asignar')}</span>
@@ -2334,21 +2360,24 @@
         <div class="table-wrap"><table>
           <thead><tr><th>Contacto</th><th>Estado</th><th>Teléfono</th><th>Responsable</th><th>Última actualización</th><th></th></tr></thead>
           <tbody>${contacts.map(item => `<tr>
-            <td><div class="person"><span class="avatar">${initials(item.name)}</span><div><strong>${esc(item.name)}</strong><span>${esc(item.company || item.email || 'Sin empresa')}</span></div></div></td>
+            <td><div class="person" data-view-contact="${attr(item.id)}" style="cursor:pointer;" title="Ver ficha 360°"><span class="avatar">${initials(item.name)}</span><div><strong>${esc(item.name)}</strong><span>${esc(item.company || item.email || 'Sin empresa')}</span></div></div></td>
             <td><span class="tag ${item.status === 'Cliente' ? 'success' : item.status === 'Inactivo' ? '' : 'lime'}">${esc(item.status)}</span></td>
-            <td class="cell-muted">${esc(item.phone || '—')}</td><td>${esc(item.owner || '—')}</td><td class="cell-muted">${localDate(item.updatedAt)}</td>
-            <td><div class="row-actions"><button class="icon-action" data-add-conversation="${attr(item.id)}" title="Registrar conversación"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}" title="Editar"><i class="bi bi-pencil"></i></button></div></td>
+            <td class="cell-muted">${item.phone ? `<a href="https://wa.me/${item.phone.replace(/\D/g,'')}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;color:var(--success);text-decoration:none;font-weight:600;"><i class="bi bi-whatsapp"></i> ${esc(item.phone)}</a>` : '—'}</td><td>${esc(item.owner || '—')}</td><td class="cell-muted">${localDate(item.updatedAt)}</td>
+            <td><div class="row-actions"><button class="icon-action" data-view-contact="${attr(item.id)}" title="Ver ficha 360°"><i class="bi bi-person-badge"></i></button><button class="icon-action" data-add-conversation="${attr(item.id)}" title="Registrar conversación"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}" title="Editar"><i class="bi bi-pencil"></i></button></div></td>
           </tr>`).join('')}</tbody>
         </table></div>
         <div class="mobile-records">${contacts.map(item => `<article class="mobile-record">
-          <div class="mobile-record-head"><div><h3>${esc(item.name)}</h3><p>${esc(item.company || item.email || 'Sin empresa')}</p></div><span class="tag ${item.status === 'Cliente' ? 'success' : 'lime'}">${esc(item.status)}</span></div>
-          <div class="mobile-record-meta"><span class="cell-muted" style="font-size:9px"><i class="bi bi-person"></i> ${esc(item.owner || 'Sin asignar')}</span><div class="row-actions"><button class="icon-action" data-add-conversation="${attr(item.id)}"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}"><i class="bi bi-pencil"></i></button></div></div>
+          <div class="mobile-record-head"><div><h3 style="cursor:pointer;" data-view-contact="${attr(item.id)}">${esc(item.name)}</h3><p>${esc(item.company || item.email || 'Sin empresa')}</p></div><span class="tag ${item.status === 'Cliente' ? 'success' : 'lime'}">${esc(item.status)}</span></div>
+          <div class="mobile-record-meta"><span class="cell-muted" style="font-size:9px"><i class="bi bi-person"></i> ${esc(item.owner || 'Sin asignar')}</span>${item.phone ? `<a href="https://wa.me/${item.phone.replace(/\D/g,'')}" target="_blank" rel="noopener" style="color:var(--success);text-decoration:none;font-size:11px;font-weight:700;"><i class="bi bi-whatsapp"></i> WhatsApp</a>` : ''}<div class="row-actions"><button class="icon-action" data-view-contact="${attr(item.id)}" title="Ver ficha 360°"><i class="bi bi-person-badge"></i></button><button class="icon-action" data-add-conversation="${attr(item.id)}"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}"><i class="bi bi-pencil"></i></button></div></div>
         </article>`).join('')}</div>` : emptyState('people', 'Todavía no hay contactos', 'Creá tu primer contacto para empezar a organizar oportunidades y conversaciones.', 'new-contact', 'Crear contacto')}
       </section>`;
     }
 
     function renderFollowUps() {
-      const pending = pendingFollowUps().filter(item => matchesSearch(item.title, contactById(item.contactId)?.name, item.owner));
+      const pending = pendingFollowUps().filter(item => {
+        const matchesType = (state.filter === 'Todos' || state.filter === 'Todos los tipos' || item.type === state.filter);
+        return matchesType && matchesSearch(item.title, contactById(item.contactId)?.name, item.owner);
+      });
       const overdue = pending.filter(isOverdue).sort(sortByDue);
       const today = pending.filter(item => !isOverdue(item) && new Date(item.dueAt).toDateString() === new Date().toDateString()).sort(sortByDue);
       const later = pending.filter(item => !isOverdue(item) && new Date(item.dueAt).toDateString() !== new Date().toDateString()).sort(sortByDue);
@@ -2357,7 +2386,10 @@
         'Una agenda clara para que ninguna venta quede olvidada.',
         `<button class="btn btn-lime" data-action="new-followup"><i class="bi bi-plus-lg"></i> Nuevo seguimiento</button>`
       ) + `
-      <div class="toolbar"><label class="toolbar-search"><i class="bi bi-search"></i><input class="local-search" type="search" value="${attr(state.search)}" placeholder="Buscar seguimiento…"></label></div>
+      <div class="toolbar">
+        <label class="toolbar-search"><i class="bi bi-search"></i><input class="local-search" type="search" value="${attr(state.search)}" placeholder="Buscar seguimiento…"></label>
+        <select class="type-filter"><option>Todos los tipos</option>${['Llamada','Email','Reunión','WhatsApp','Tarea'].map(x => `<option ${x === state.filter ? 'selected' : ''}>${x}</option>`).join('')}</select>
+      </div>
       <section class="follow-grid">
         ${followColumn('Vencidos', overdue, 'danger')}
         ${followColumn('Para hoy', today, 'warning')}
@@ -2405,22 +2437,33 @@
     }
 
     function renderQuotes() {
-      const items = state.quotes.filter(item => matchesSearch(item.quoteNumber, contactById(item.contactId)?.name, item.status, item.owner))
-        .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const items = state.quotes.filter(item => {
+        const isPastDue = item.validUntil && (item.validUntil < todayStr) && !['Aceptada', 'Rechazada'].includes(item.status);
+        const displayStatus = isPastDue && item.status !== 'Vencida' ? 'Vencida' : item.status;
+        const matchesStatus = (state.filter === 'Todos' || displayStatus === state.filter);
+        return matchesStatus && matchesSearch(item.quoteNumber, contactById(item.contactId)?.name, displayStatus, item.owner);
+      }).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
       return pageHead(
         'Cotizaciones',
         'Creá propuestas claras y guardá su estado comercial.',
         `<button class="btn btn-lime" data-action="new-quote"><i class="bi bi-plus-lg"></i> Nueva cotización</button>`
       ) + `
-      <div class="toolbar"><label class="toolbar-search"><i class="bi bi-search"></i><input class="local-search" type="search" value="${attr(state.search)}" placeholder="Buscar cotización…"></label></div>
+      <div class="toolbar">
+        <label class="toolbar-search"><i class="bi bi-search"></i><input class="local-search" type="search" value="${attr(state.search)}" placeholder="Buscar cotización…"></label>
+        <select class="status-filter"><option>Todos</option>${['Borrador','Enviada','Aceptada','Rechazada','Vencida'].map(x => `<option ${x === state.filter ? 'selected' : ''}>${x}</option>`).join('')}</select>
+      </div>
       ${items.length ? `<section class="quote-grid">${items.map(item => {
         const contact = contactById(item.contactId);
-        const tone = item.status === 'Aceptada' ? 'success' : item.status === 'Rechazada' || item.status === 'Vencida' ? 'danger' : item.status === 'Enviada' ? 'warning' : '';
+        const isPastDue = item.validUntil && (new Date(item.validUntil + 'T23:59:59') < new Date()) && !['Aceptada', 'Rechazada'].includes(item.status);
+        const displayStatus = isPastDue && item.status !== 'Vencida' ? 'Vencida' : item.status;
+        const tone = displayStatus === 'Aceptada' ? 'success' : ['Rechazada', 'Vencida'].includes(displayStatus) ? 'danger' : displayStatus === 'Enviada' ? 'warning' : '';
         return `<article class="quote-card">
-          <div class="quote-top"><span class="quote-number">${esc(item.quoteNumber)}</span><span class="tag ${tone}">${esc(item.status)}</span></div>
+          <div class="quote-top"><span class="quote-number">${esc(item.quoteNumber)}</span><span class="tag ${tone}">${esc(displayStatus)}</span></div>
           <h3>${esc(contact?.name || 'Sin contacto')}</h3><p>${esc(contact?.company || opportunityById(item.opportunityId)?.title || item.owner)}</p>
           <div class="quote-total">${money(item.total, item.currency)}</div>
-          <div class="quote-foot"><span>Válida hasta ${localDate(item.validUntil)}</span><div class="row-actions"><button class="icon-action" data-print-quote="${attr(item.id)}" title="Imprimir o guardar PDF"><i class="bi bi-printer"></i></button><button class="icon-action" data-edit-quote="${attr(item.id)}" title="Editar"><i class="bi bi-pencil"></i></button></div></div>
+          <div class="quote-foot"><span>Válida hasta ${localDate(item.validUntil)}${isPastDue ? ' <strong style="color:var(--danger);font-size:11px;">(Vencida)</strong>' : ''}</span><div class="row-actions"><button class="icon-action" data-print-quote="${attr(item.id)}" title="Imprimir o guardar PDF"><i class="bi bi-printer"></i></button><button class="icon-action" data-edit-quote="${attr(item.id)}" title="Editar"><i class="bi bi-pencil"></i></button></div></div>
         </article>`;
       }).join('')}</section>` : `<section class="data-card">${emptyState('receipt', 'Todavía no hay cotizaciones', 'Armá una propuesta con productos o servicios y guardala en tu CRM.', 'new-quote', 'Crear cotización')}</section>`}`;
     }
@@ -2447,6 +2490,42 @@
       ) + `<section class="seller-grid">${cards}</section>`;
     }
 
+    function renderAudit() {
+      const logs = (state.auditLogs || []).filter(item =>
+        (state.filter === 'Todos' || item.action === state.filter) &&
+        matchesSearch(item.userName, item.action, item.entityType, item.entityId, item.details)
+      );
+      const actions = ['Todos', 'LOGIN', 'CHANGE_STAGE', 'CREATE', 'UPDATE', 'ARCHIVE', 'COMPLETE_TASK', 'RESET_PASSWORD'];
+      return pageHead(
+        'Auditoría del Sistema',
+        'Historial cronológico de cambios, accesos y operaciones comerciales.',
+        state.user.role === 'admin' ? `
+          <button class="btn btn-white" data-action="run-health-check"><i class="bi bi-activity"></i> Diagnóstico</button>
+          <button class="btn btn-lime" data-action="manage-automations"><i class="bi bi-robot"></i> Automatizaciones & n8n</button>` : ''
+      ) + `
+      <div class="toolbar">
+        <label class="toolbar-search"><i class="bi bi-search"></i><input class="local-search" type="search" value="${attr(state.search)}" placeholder="Buscar en auditoría…"></label>
+        <select class="status-filter">${actions.map(x => `<option ${x === state.filter ? 'selected' : ''}>${x}</option>`).join('')}</select>
+      </div>
+      <section class="data-card">
+        ${logs.length ? `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Fecha / Hora</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Detalle</th><th>Estado</th></tr></thead>
+          <tbody>${logs.map(item => {
+            const actTone = item.action === 'CREATE' ? 'success' : item.action === 'ARCHIVE' ? 'danger' : item.action === 'CHANGE_STAGE' ? 'lime' : item.action === 'LOGIN' ? 'blue' : '';
+            return `<tr>
+              <td class="cell-muted" style="white-space:nowrap;font-size:12px;">${localDateTime(item.timestamp)}</td>
+              <td><div class="person"><span class="avatar">${initials(item.userName)}</span><div><strong>${esc(item.userName)}</strong></div></div></td>
+              <td><span class="tag ${actTone}">${esc(item.action)}</span></td>
+              <td><strong>${esc(item.entityType)}</strong>${item.entityId ? `<br><small class="cell-muted" style="font-size:10px;">${esc(item.entityId)}</small>` : ''}</td>
+              <td style="max-width:320px;word-break:break-word;font-size:13px;">${esc(item.details || '—')}</td>
+              <td><span class="tag ${item.status === 'SUCCESS' ? 'success' : 'danger'}">${esc(item.status)}</span></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>` : emptyState('shield-check', 'No hay registros de auditoría', 'Las acciones clave del CRM se registrarán automáticamente aquí.', '', '')}
+      </section>`;
+    }
+
     function emptyState(icon, title, text, action, label) {
       return `<div class="empty-state"><div><span class="empty-state-icon"><i class="bi bi-${icon}"></i></span><h2>${esc(title)}</h2><p>${esc(text)}</p><button class="btn btn-lime btn-sm" data-action="${attr(action)}"><i class="bi bi-plus-lg"></i> ${esc(label)}</button></div></div>`;
     }
@@ -2462,6 +2541,7 @@
       }, 220)));
       $('.owner-filter', el.main)?.addEventListener('change', event => { state.filter = event.target.value; render(); });
       $('.status-filter', el.main)?.addEventListener('change', event => { state.filter = event.target.value; render(); });
+      $('.type-filter', el.main)?.addEventListener('change', event => { state.filter = event.target.value; render(); });
 
       $$('.deal-card', el.main).forEach(card => {
         card.addEventListener('dragstart', event => { card.classList.add('dragging'); event.dataTransfer.setData('text/plain', card.dataset.dealId); });
@@ -2524,6 +2604,248 @@
     }
     function opportunityOptions(selected = '') {
       return `<option value="">Sin oportunidad</option>${state.opportunities.filter(item => !['Perdido'].includes(item.stage)).map(item => `<option value="${attr(item.id)}" ${item.id === selected ? 'selected' : ''}>${esc(item.title)}</option>`).join('')}`;
+    }
+
+    function contactProfileModal(id) {
+      const contact = contactById(id);
+      if (!contact) return;
+
+      const opps = state.opportunities.filter(o => o.contactId === contact.id && !toBoolean(o.archived));
+      const quotes = state.quotes.filter(q => q.contactId === contact.id);
+      const followUps = state.followUps.filter(f => f.contactId === contact.id);
+      const convos = state.conversations.filter(c => c.contactId === contact.id)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      const totalPipeline = opps.filter(o => !['Ganado', 'Perdido'].includes(o.stage)).reduce((s, x) => s + toNumber(x.value), 0);
+      const totalWon = opps.filter(o => o.stage === 'Ganado').reduce((s, x) => s + toNumber(x.value), 0);
+      const phoneDigits = contact.phone ? contact.phone.replace(/\D/g, '') : '';
+
+      openModal(
+        `Ficha 360°: ${contact.name}`,
+        contact.company || 'Cliente / Prospecto',
+        `
+        <div style="display:flex;flex-direction:column;gap:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:var(--soft);padding:14px 18px;border-radius:16px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <span class="avatar" style="width:48px;height:48px;font-size:18px;background:var(--ink);color:var(--lime);">${initials(contact.name)}</span>
+              <div>
+                <strong style="font-size:16px;display:block;">${esc(contact.name)}</strong>
+                <span class="cell-muted" style="font-size:12px;">${esc(contact.company || 'Sin empresa')} · Asignado a <strong>${esc(contact.owner || 'Sin asignar')}</strong></span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              ${phoneDigits ? `<a href="https://wa.me/${phoneDigits}" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;color:#fff;border:none;"><i class="bi bi-whatsapp"></i> WhatsApp</a>` : ''}
+              ${contact.phone ? `<a href="tel:${esc(contact.phone)}" class="btn btn-sm btn-white"><i class="bi bi-telephone"></i> Llamar</a>` : ''}
+              ${contact.email ? `<a href="mailto:${esc(contact.email)}" class="btn btn-sm btn-white"><i class="bi bi-envelope"></i> Email</a>` : ''}
+              <button type="button" class="btn btn-sm btn-white" data-ai-assist="draft_message" data-contact-id="${attr(contact.id)}" title="Generar borrador de mensaje con IA"><i class="bi bi-stars" style="color:var(--blue);"></i> Redactar con IA</button>
+              <button type="button" class="btn btn-sm btn-lime" data-edit-contact="${attr(contact.id)}"><i class="bi bi-pencil"></i> Editar</button>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
+            <div style="background:var(--lavender-2);border-radius:12px;padding:10px 14px;">
+              <span style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;">Estado</span>
+              <strong style="display:block;margin-top:2px;font-size:14px;">${esc(contact.status)}</strong>
+            </div>
+            <div style="background:var(--soft);border-radius:12px;padding:10px 14px;">
+              <span style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;">Pipeline Abierto</span>
+              <strong style="display:block;margin-top:2px;font-size:14px;">${money(totalPipeline)}</strong>
+            </div>
+            <div style="background:var(--lime-2);border-radius:12px;padding:10px 14px;">
+              <span style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;">Ventas Ganadas</span>
+              <strong style="display:block;margin-top:2px;font-size:14px;color:var(--success);">${money(totalWon)}</strong>
+            </div>
+            <div style="background:var(--soft);border-radius:12px;padding:10px 14px;">
+              <span style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;">Cotizaciones</span>
+              <strong style="display:block;margin-top:2px;font-size:14px;">${quotes.length} emitidas</strong>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <article class="data-card" style="padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <strong style="font-size:13px;"><i class="bi bi-kanban"></i> Oportunidades (${opps.length})</strong>
+                  <button type="button" class="btn btn-sm btn-white" data-action="new-opportunity" style="font-size:11px;padding:4px 8px;">+ Nueva</button>
+                </div>
+                ${opps.length ? opps.map(o => `
+                  <div style="border-bottom:1px solid var(--line);padding:8px 0;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                      <strong style="font-size:13px;cursor:pointer;" data-edit-opportunity="${attr(o.id)}">${esc(o.title)}</strong>
+                      <div style="display:flex;gap:6px;margin-top:3px;"><span class="tag" style="font-size:9px;">${esc(o.stage)}</span><span class="cell-muted" style="font-size:11px;">${money(o.value)}</span></div>
+                    </div>
+                    <button type="button" class="icon-action" data-edit-opportunity="${attr(o.id)}" title="Editar"><i class="bi bi-pencil"></i></button>
+                  </div>
+                `).join('') : '<p class="cell-muted" style="font-size:12px;margin:6px 0;">No tiene oportunidades abiertas.</p>'}
+              </article>
+
+              <article class="data-card" style="padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <strong style="font-size:13px;"><i class="bi bi-receipt"></i> Cotizaciones (${quotes.length})</strong>
+                  <button type="button" class="btn btn-sm btn-white" data-action="new-quote" style="font-size:11px;padding:4px 8px;">+ Nueva</button>
+                </div>
+                ${quotes.length ? quotes.map(q => `
+                  <div style="border-bottom:1px solid var(--line);padding:8px 0;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                      <strong style="font-size:12px;">${esc(q.quoteNumber)}</strong> · <span class="tag ${q.status === 'Aceptada' ? 'success' : q.status === 'Vencida' ? 'danger' : ''}" style="font-size:9px;">${esc(q.status)}</span>
+                      <div style="font-size:12px;font-weight:700;margin-top:2px;">${money(q.total, q.currency)}</div>
+                    </div>
+                    <div style="display:flex;gap:4px;">
+                      <button type="button" class="icon-action" data-print-quote="${attr(q.id)}" title="Imprimir"><i class="bi bi-printer"></i></button>
+                      <button type="button" class="icon-action" data-edit-quote="${attr(q.id)}" title="Editar"><i class="bi bi-pencil"></i></button>
+                    </div>
+                  </div>
+                `).join('') : '<p class="cell-muted" style="font-size:12px;margin:6px 0;">No hay cotizaciones para este contacto.</p>'}
+              </article>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <article class="data-card" style="padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <strong style="font-size:13px;"><i class="bi bi-calendar-check"></i> Seguimientos (${followUps.length})</strong>
+                  <button type="button" class="btn btn-sm btn-white" data-action="new-followup" style="font-size:11px;padding:4px 8px;">+ Nuevo</button>
+                </div>
+                ${followUps.length ? followUps.map(f => `
+                  <div style="border-bottom:1px solid var(--line);padding:8px 0;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                      <strong style="font-size:12px;${f.status === 'Completado' ? 'text-decoration:line-through;color:var(--muted);' : ''}">${esc(f.title)}</strong>
+                      <div class="cell-muted" style="font-size:10px;margin-top:2px;"><i class="bi bi-clock"></i> ${localDateTime(f.dueAt)} · <span class="tag" style="font-size:9px;">${esc(f.type)}</span></div>
+                    </div>
+                    ${f.status !== 'Completado' ? `<button type="button" class="btn btn-sm btn-lime" data-complete="${attr(f.id)}" style="font-size:10px;padding:3px 6px;">Listo</button>` : '<span class="cell-muted" style="font-size:10px;"><i class="bi bi-check-all"></i></span>'}
+                  </div>
+                `).join('') : '<p class="cell-muted" style="font-size:12px;margin:6px 0;">No hay tareas programadas.</p>'}
+              </article>
+
+              <article class="data-card" style="padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <strong style="font-size:13px;"><i class="bi bi-chat-left-text"></i> Historial (${convos.length})</strong>
+                  <button type="button" class="btn btn-sm btn-white" data-add-conversation="${attr(contact.id)}" style="font-size:11px;padding:4px 8px;">+ Registrar</button>
+                </div>
+                ${convos.length ? convos.slice(0, 5).map(c => `
+                  <div style="border-bottom:1px solid var(--line);padding:8px 0;">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);">
+                      <span><i class="bi bi-${TYPE_ICONS[c.channel] || 'chat'}"></i> ${esc(c.channel)} (${esc(c.direction)})</span>
+                      <span>${localDate(c.createdAt)}</span>
+                    </div>
+                    <p style="margin:4px 0 0;font-size:12px;">${esc(c.summary)}</p>
+                  </div>
+                `).join('') : '<p class="cell-muted" style="font-size:12px;margin:6px 0;">Sin conversaciones registradas.</p>'}
+              </article>
+            </div>
+          </div>
+
+          ${contact.notes ? `
+          <div style="background:var(--soft);border-radius:12px;padding:12px 16px;">
+            <strong style="font-size:12px;color:var(--muted);"><i class="bi bi-sticky"></i> Notas del contacto</strong>
+            <p style="margin:4px 0 0;font-size:13px;">${esc(contact.notes)}</p>
+          </div>` : ''}
+        </div>
+        `,
+        () => closeModal(),
+        { submitLabel: 'Aceptar', wide: true }
+      );
+    }
+
+    function openNotificationsModal() {
+      const overdue = pendingFollowUps().filter(isOverdue);
+      const today = pendingFollowUps().filter(item => !isOverdue(item) && new Date(item.dueAt).toDateString() === new Date().toDateString());
+      const stale = staleOpportunities();
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const expiredQuotes = state.quotes.filter(q => q.validUntil && q.validUntil < todayStr && !['Aceptada', 'Rechazada'].includes(q.status));
+      const totalAlerts = overdue.length + today.length + stale.length + expiredQuotes.length;
+
+      openModal(
+        'Centro de Alertas y Notificaciones',
+        `${totalAlerts} avisos prioritarios de gestión comercial`,
+        `
+        <div style="display:flex;flex-direction:column;gap:14px;max-height:65vh;overflow-y:auto;">
+          ${overdue.length ? `
+          <div>
+            <h3 style="color:var(--danger);font-size:13px;display:flex;align-items:center;gap:6px;margin:0 0 8px;">
+              <i class="bi bi-exclamation-octagon-fill"></i> Seguimientos vencidos (${overdue.length})
+            </h3>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${overdue.map(f => {
+                const c = contactById(f.contactId);
+                return `<div style="display:flex;justify-content:space-between;align-items:center;background:var(--danger-soft);border:1px solid rgba(227,81,98,0.2);border-radius:10px;padding:8px 12px;">
+                  <div>
+                    <strong style="font-size:12px;">${esc(f.title)}</strong>
+                    <div style="font-size:11px;color:var(--muted);">${esc(c?.name || 'Sin contacto')} · Venció: ${localDateTime(f.dueAt)}</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-lime" data-complete="${attr(f.id)}" style="font-size:11px;padding:3px 8px;">Completar</button>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>` : ''}
+
+          ${today.length ? `
+          <div>
+            <h3 style="color:var(--warning);font-size:13px;display:flex;align-items:center;gap:6px;margin:10px 0 8px;">
+              <i class="bi bi-calendar2-event-fill"></i> Tareas programadas para hoy (${today.length})
+            </h3>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${today.map(f => {
+                const c = contactById(f.contactId);
+                return `<div style="display:flex;justify-content:space-between;align-items:center;background:var(--warning-soft);border:1px solid rgba(240,161,40,0.2);border-radius:10px;padding:8px 12px;">
+                  <div>
+                    <strong style="font-size:12px;">${esc(f.title)}</strong>
+                    <div style="font-size:11px;color:var(--muted);">${esc(c?.name || 'Sin contacto')} · Hora: ${localDateTime(f.dueAt)}</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-lime" data-complete="${attr(f.id)}" style="font-size:11px;padding:3px 8px;">Completar</button>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>` : ''}
+
+          ${expiredQuotes.length ? `
+          <div>
+            <h3 style="color:var(--danger);font-size:13px;display:flex;align-items:center;gap:6px;margin:10px 0 8px;">
+              <i class="bi bi-receipt-cutoff"></i> Cotizaciones vencidas (${expiredQuotes.length})
+            </h3>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${expiredQuotes.map(q => {
+                const c = contactById(q.contactId);
+                return `<div style="display:flex;justify-content:space-between;align-items:center;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;">
+                  <div>
+                    <strong style="font-size:12px;">${esc(q.quoteNumber)}</strong> · ${money(q.total, q.currency)}
+                    <div style="font-size:11px;color:var(--muted);">${esc(c?.name || 'Sin contacto')} · Venció: ${localDate(q.validUntil)}</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-white" data-edit-quote="${attr(q.id)}" style="font-size:11px;padding:3px 8px;">Revisar</button>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>` : ''}
+
+          ${stale.length ? `
+          <div>
+            <h3 style="color:var(--ink);font-size:13px;display:flex;align-items:center;gap:6px;margin:10px 0 8px;">
+              <i class="bi bi-hourglass-split"></i> Oportunidades estancadas (${stale.length})
+            </h3>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${stale.map(opp => `
+                <div style="display:flex;justify-content:space-between;align-items:center;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;">
+                  <div>
+                    <strong style="font-size:12px;">${esc(opp.title)}</strong> (${money(opp.value)})
+                    <div style="font-size:11px;color:var(--muted);">${esc(opp.owner)} · Etapa: ${esc(opp.stage)} (${daysSince(opp.lastActivity)} días sin actividad)</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-white" data-edit-opportunity="${attr(opp.id)}" style="font-size:11px;padding:3px 8px;">Abrir</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>` : ''}
+
+          ${!totalAlerts ? `
+            <div style="text-align:center;padding:30px 10px;">
+              <i class="bi bi-check2-circle" style="font-size:40px;color:var(--success);"></i>
+              <strong style="display:block;margin-top:10px;font-size:15px;">¡Todo al día!</strong>
+              <p class="cell-muted" style="font-size:12px;">No tenés seguimientos vencidos, cotizaciones expiradas ni alertas pendientes.</p>
+            </div>
+          ` : ''}
+        </div>
+        `,
+        () => closeModal(),
+        { submitLabel: 'Aceptar' }
+      );
     }
 
     function contactModal(id = '') {
@@ -2725,9 +3047,184 @@
         'new-followup': () => followUpModal(),
         'new-conversation': () => conversationModal(),
         'new-quote': () => quoteModal(),
-        'new-seller': () => sellerModal()
+        'new-seller': () => sellerModal(),
+        'run-health-check': () => runHealthCheck(),
+        'manage-automations': () => manageAutomationsModal()
       };
       actions[action]?.();
+    }
+
+    async function openAiModal(type, contactId) {
+      const contact = contactById(contactId);
+      if (!contact) return;
+      const opp = state.opportunities.find(o => o.contactId === contact.id && !toBoolean(o.archived));
+      const quote = state.quotes.find(q => q.contactId === contact.id);
+
+      const context = {
+        contactName: contact.name,
+        company: contact.company || '',
+        oppTitle: opp ? opp.title : '',
+        stage: opp ? opp.stage : '',
+        value: opp ? opp.value : 0,
+        quoteNumber: quote ? quote.quoteNumber : '',
+        notes: contact.notes || (opp ? opp.notes : '')
+      };
+
+      setLoading(true, 'Generando con Inteligencia Artificial…');
+      try {
+        const res = await api('aiAssist', { type, context });
+        const generated = res.result || '';
+        openModal(
+          'Asistente Comercial con IA',
+          `Propuesta sugerida para ${esc(contact.name)}`,
+          `
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div style="background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;" id="aiResultText">${esc(generated)}</div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+              <button type="button" class="btn btn-white" id="copyAiBtn"><i class="bi bi-clipboard"></i> Copiar texto</button>
+              <button type="button" class="btn btn-lime" id="saveAiNoteBtn"><i class="bi bi-sticky"></i> Guardar en Historial</button>
+            </div>
+          </div>
+          `,
+          () => closeModal(),
+          { submitLabel: 'Aceptar' }
+        );
+
+        $('#copyAiBtn', el.modal)?.addEventListener('click', () => {
+          navigator.clipboard.writeText(generated);
+          toast('Texto copiado', 'Ya podés pegarlo en WhatsApp o en tu correo.');
+        });
+
+        $('#saveAiNoteBtn', el.modal)?.addEventListener('click', async () => {
+          closeModal();
+          await mutate('saveConversation', {
+            data: {
+              contactId: contact.id,
+              opportunityId: opp ? opp.id : '',
+              channel: 'Nota',
+              direction: 'Nota',
+              summary: 'Borrador generado por IA: ' + generated
+            }
+          }, 'Borrador de IA guardado en el historial');
+        });
+      } catch (err) {
+        toast('Asistente IA', err.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function manageAutomationsModal() {
+      const webhookUrl = APPS_SCRIPT_URL.replace(/\/exec$/, '/exec');
+      const settings = state.settings || {};
+      const autoFollow = settings.autoFollowUps !== 'false';
+      const n8nUrl = settings.n8nWebhookUrl || '';
+
+      openModal(
+        'Centro de Automatizaciones & Integraciones',
+        'Conexión con n8n, disparadores programados y reglas de embudo',
+        `
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="data-card" style="padding:14px;">
+            <strong style="display:flex;align-items:center;gap:6px;font-size:14px;margin-bottom:6px;">
+              <i class="bi bi-link-45deg" style="color:var(--blue);font-size:18px;"></i> Webhook Entrante (Recepción de Leads desde Web o n8n)
+            </strong>
+            <p class="cell-muted" style="font-size:11px;margin:0 0 8px;">Enviá solicitudes POST con formato JSON incluyendo <code>action: "webhookIngest"</code> y <code>secret: "core3d-webhook-key"</code>:</p>
+            <div style="background:var(--soft);padding:8px 12px;border-radius:8px;font-family:monospace;font-size:11px;word-break:break-all;user-select:all;">
+              ${esc(webhookUrl)}
+            </div>
+          </div>
+
+          <form id="automationsConfigForm" style="display:flex;flex-direction:column;gap:12px;">
+            <div class="field">
+              <label>Webhook Saliente para n8n / Zapier</label>
+              <input name="n8nWebhookUrl" value="${attr(n8nUrl)}" placeholder="https://tu-n8n.com/webhook/crm-events">
+              <small class="cell-muted">El CRM notificará eventos comerciales (oportunidad ganada, cotización aceptada) a esta URL.</small>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;background:var(--soft);padding:12px 14px;border-radius:12px;">
+              <input type="checkbox" id="autoFollowCheck" name="autoFollowUps" value="true" ${autoFollow ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+              <label for="autoFollowCheck" style="margin:0;cursor:pointer;font-size:13px;"><strong>Generar tareas automáticas por etapa</strong><br><span class="cell-muted" style="font-size:11px;">Crea recordatorios automáticos al mover oportunidades a Contactado, Propuesta o Negociación.</span></label>
+            </div>
+          </form>
+
+          <div class="data-card" style="padding:14px;">
+            <strong style="display:flex;align-items:center;gap:6px;font-size:14px;margin-bottom:6px;">
+              <i class="bi bi-clock-history" style="color:var(--warning);font-size:18px;"></i> Disparador Diario Automático (Cron en Apps Script)
+            </strong>
+            <p class="cell-muted" style="font-size:11px;margin:0 0 10px;">Revisa todas las mañanas cotizaciones vencidas y oportunidades estancadas.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm btn-white" id="runDailyNowBtn"><i class="bi bi-play-circle"></i> Ejecutar ahora</button>
+              <button type="button" class="btn btn-sm btn-lime" id="installCronBtn"><i class="bi bi-alarm"></i> Instalar disparador (08:00 AM)</button>
+            </div>
+          </div>
+        </div>
+        `,
+        async () => {
+          const cfgForm = $('#automationsConfigForm', el.modal);
+          const data = formObject(cfgForm);
+          const n8nWebhookUrl = data.n8nWebhookUrl || '';
+          const autoFollowUps = $('#autoFollowCheck', cfgForm)?.checked ? 'true' : 'false';
+          await mutate('saveSettings', {
+            settings: { n8nWebhookUrl, autoFollowUps }
+          }, 'Configuración de automatizaciones guardada');
+        },
+        { submitLabel: 'Guardar configuración', wide: true }
+      );
+
+      $('#runDailyNowBtn', el.modal)?.addEventListener('click', async () => {
+        setLoading(true, 'Ejecutando automatizaciones de vencimientos…');
+        try {
+          const res = await api('runDailyAutomations');
+          await loadData();
+          render();
+          toast('Automatizaciones ejecutadas', `Cotizaciones vencidas: ${res.quotesExpired || 0}. Oportunidades estancadas: ${res.oppsStaleCount || 0}.`);
+        } catch (err) {
+          toast('Error al ejecutar', err.message, 'error');
+        } finally {
+          setLoading(false);
+        }
+      });
+
+      $('#installCronBtn', el.modal)?.addEventListener('click', async () => {
+        setLoading(true, 'Instalando disparador en Google Apps Script…');
+        try {
+          const res = await api('installDailyTrigger');
+          toast('Disparador configurado', res.message || 'Se ejecutará todos los días a las 08:00 AM.');
+        } catch (err) {
+          toast('No se pudo instalar', err.message, 'error');
+        } finally {
+          setLoading(false);
+        }
+      });
+    }
+
+    async function runHealthCheck() {
+      setLoading(true, 'Ejecutando diagnóstico del CRM…');
+      try {
+        const res = await api('healthCheck');
+        const sheetsRows = Object.entries(res.sheets || {})
+          .map(([name, count]) => `<tr><td style="padding:6px 0;"><strong>${esc(name)}</strong></td><td style="text-align:right;padding:6px 0;">${count} filas</td></tr>`)
+          .join('');
+        openModal('Diagnóstico del CRM', 'Estado de la conexión y almacenamiento en Google Sheets', `
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--success-soft);border:1px solid var(--success);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+              <i class="bi bi-check-circle-fill" style="font-size:24px;color:var(--success);"></i>
+              <div><strong style="color:var(--success);font-size:15px;">Conexión y hojas operativas</strong><br><small class="cell-muted">${esc(res.spreadsheetName)} (${esc(res.spreadsheetId)})</small></div>
+            </div>
+            <div class="data-card" style="padding:14px;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="border-bottom:1px solid var(--line);"><th style="text-align:left;padding-bottom:8px;">Hoja</th><th style="text-align:right;padding-bottom:8px;">Registros</th></tr></thead>
+                <tbody>${sheetsRows}</tbody>
+              </table>
+            </div>
+            <p class="cell-muted" style="font-size:12px;margin:0;">Zona horaria: <strong>${esc(res.timezone || res.scriptTimezone)}</strong> · Total de hojas verificadas: <strong>${esc(res.sheetsChecked)}</strong></p>
+          </div>
+        `, () => closeModal(), { submitLabel: 'Aceptar' });
+      } catch (err) {
+        toast('Fallo en diagnóstico', err.message, 'error');
+      } finally {
+        setLoading(false);
+      }
     }
 
     function openView(view) {
@@ -2757,7 +3254,7 @@
       $('#logoutButton').addEventListener('click', () => logout(true));
       $('#menuButton').addEventListener('click', openDrawer);
       el.overlay.addEventListener('click', closeDrawer);
-      $('#alertButton').addEventListener('click', () => { openView('pipeline'); state.filter = 'Todos'; });
+      $('#alertButton').addEventListener('click', openNotificationsModal);
       $('#globalSearch').addEventListener('input', debounce(event => {
         state.search = event.target.value;
         if (state.search && !['pipeline','contacts'].includes(state.view)) state.view = 'contacts';
@@ -2768,6 +3265,8 @@
         if (actionButton) handleAction(actionButton.dataset.action);
         const jump = event.target.closest('[data-view-jump]');
         if (jump) openView(jump.dataset.viewJump);
+        const viewContact = event.target.closest('[data-view-contact]');
+        if (viewContact) { contactProfileModal(viewContact.dataset.viewContact); return; }
         const editContact = event.target.closest('[data-edit-contact]');
         if (editContact) contactModal(editContact.dataset.editContact);
         const editOpportunity = event.target.closest('[data-edit-opportunity]');
@@ -2869,12 +3368,39 @@
         quotes: [
           { id: 'COT-1', quoteNumber: 'COT-2026-0001', contactId: 'CON-4', opportunityId: 'OPP-3', subtotal: 2450000, taxRate: 0, taxAmount: 0, total: 2450000, currency: 'ARS', status: 'Enviada', validUntil: dateInput(new Date(now + 12*86400000)), itemsJson: JSON.stringify([{ description: 'Diseño y desarrollo web', quantity: 1, price: 2450000, total: 2450000 }]), owner: 'Taylor Gómez', createdAt: new Date(now - 2*86400000).toISOString() },
           { id: 'COT-2', quoteNumber: 'COT-2026-0002', contactId: 'CON-1', opportunityId: 'OPP-5', subtotal: 1280000, taxRate: 0, taxAmount: 0, total: 1280000, currency: 'ARS', status: 'Aceptada', validUntil: dateInput(new Date(now + 4*86400000)), itemsJson: JSON.stringify([{ description: 'Sistema de identidad', quantity: 1, price: 1280000, total: 1280000 }]), owner: 'Taylor Gómez', createdAt: new Date(now - 10*86400000).toISOString() }
+        ],
+        auditLogs: [
+          { id: 'AUD-1', timestamp: new Date(now - 3600000).toISOString(), userId: 'USR-DEMO', userName: 'Taylor Gómez', action: 'LOGIN', entityType: 'Sesion', entityId: 'USR-DEMO', details: 'Inicio de sesión exitoso', status: 'SUCCESS' },
+          { id: 'AUD-2', timestamp: new Date(now - 7200000).toISOString(), userId: 'USR-DEMO', userName: 'Taylor Gómez', action: 'CHANGE_STAGE', entityType: 'Oportunidades', entityId: 'OPP-5', details: 'Etapa actualizada: Negociación → Ganado', status: 'SUCCESS' },
+          { id: 'AUD-3', timestamp: new Date(now - 14400000).toISOString(), userId: 'USR-2', userName: 'Lucía Méndez', action: 'CREATE', entityType: 'Cotizaciones', entityId: 'COT-2', details: 'COT-2026-0002', status: 'SUCCESS' }
         ]
       };
     }
 
     async function demoApi(action, payload) {
       await new Promise(resolve => setTimeout(resolve, action === 'bootstrap' ? 160 : 260));
+      if (action === 'healthCheck') {
+        const d = state._demoData ||= demoSeed();
+        return {
+          ok: true,
+          message: 'Entorno de demostración activo.',
+          spreadsheetName: 'CORE 3D CRM Local Demo',
+          spreadsheetId: 'DEMO-LOCAL-STORAGE',
+          timezone: 'America/Argentina/Buenos_Aires',
+          scriptTimezone: 'America/Argentina/Buenos_Aires',
+          sheetsChecked: 8,
+          sheets: {
+            Contactos: d.contacts.length,
+            Oportunidades: d.opportunities.length,
+            Seguimientos: d.followUps.length,
+            Conversaciones: d.conversations.length,
+            Cotizaciones: d.quotes.length,
+            Vendedores: d.sellers.length,
+            Configuracion: 2,
+            Auditoria: (d.auditLogs || []).length
+          }
+        };
+      }
       if (action === 'login') {
         const saved = JSON.parse(localStorage.getItem('nexo_demo_data') || 'null') || demoSeed();
         state._demoData = saved;
