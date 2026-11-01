@@ -2349,7 +2349,11 @@
       return pageHead(
         'Contactos',
         `${state.contacts.length} personas y empresas en tu base`,
-        `<button class="btn btn-lime" data-action="new-contact"><i class="bi bi-person-plus"></i> Nuevo contacto</button>`
+        `<div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-white" data-action="export-contacts-csv"><i class="bi bi-filetype-csv"></i> Exportar</button>
+          ${state.user.role === 'admin' ? '<button class="btn btn-white" data-action="import-contacts-csv"><i class="bi bi-upload"></i> Importar</button>' : ''}
+          <button class="btn btn-lime" data-action="new-contact"><i class="bi bi-person-plus"></i> Nuevo contacto</button>
+        </div>`
       ) + `
       <div class="toolbar">
         <label class="toolbar-search"><i class="bi bi-search"></i><input class="local-search" type="search" value="${attr(state.search)}" placeholder="Buscar por nombre, empresa o email…"></label>
@@ -2501,6 +2505,7 @@
         'Historial cronológico de cambios, accesos y operaciones comerciales.',
         state.user.role === 'admin' ? `
           <button class="btn btn-white" data-action="run-health-check"><i class="bi bi-activity"></i> Diagnóstico</button>
+          <button class="btn btn-white" data-action="create-backup"><i class="bi bi-cloud-arrow-up"></i> Crear Backup</button>
           <button class="btn btn-lime" data-action="manage-automations"><i class="bi bi-robot"></i> Automatizaciones & n8n</button>` : ''
       ) + `
       <div class="toolbar">
@@ -3049,9 +3054,152 @@
         'new-quote': () => quoteModal(),
         'new-seller': () => sellerModal(),
         'run-health-check': () => runHealthCheck(),
-        'manage-automations': () => manageAutomationsModal()
+        'manage-automations': () => manageAutomationsModal(),
+        'create-backup': () => handleCreateBackup(),
+        'export-contacts-csv': () => handleExportCsv('Contactos'),
+        'import-contacts-csv': () => handleImportContactsModal()
       };
       actions[action]?.();
+    }
+
+    async function handleCreateBackup() {
+      if (!confirm('¿Crear una copia de respaldo completa de la base de datos en Google Drive?')) return;
+      setLoading(true, 'Creando copia de respaldo en Drive…');
+      try {
+        const res = await api('createBackup');
+        toast('Backup generado', res.backupName, 'success');
+        openModal(
+          'Copia de Seguridad Creada',
+          'El archivo se guardó en la carpeta CORE_3D_CRM_Backups en Drive.',
+          `
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <p><strong>Archivo:</strong> ${esc(res.backupName)}</p>
+            <p class="cell-muted" style="font-size:12px;">Fecha y hora: ${localDateTime(res.createdAt)}</p>
+            ${res.backupUrl ? `<a href="${esc(res.backupUrl)}" target="_blank" rel="noopener" class="btn btn-lime"><i class="bi bi-box-arrow-up-right"></i> Abrir copia en Drive</a>` : ''}
+          </div>
+          `,
+          () => closeModal(),
+          { submitLabel: 'Aceptar' }
+        );
+      } catch (err) {
+        toast('Error al crear backup', err.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function handleExportCsv(collection) {
+      setLoading(true, `Generando archivo CSV de ${collection}…`);
+      try {
+        const res = await api('exportCsv', { collection });
+        const blob = new Blob([res.csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename || `${collection}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast('Exportación lista', `Se descargaron ${res.totalRows} registros en CSV.`);
+      } catch (err) {
+        toast('Error al exportar', err.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function handleImportContactsModal() {
+      openModal(
+        'Importar Contactos desde CSV',
+        'Cargá un listado masivo respetando las columnas requeridas',
+        `
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <p class="cell-muted" style="font-size:12px;margin:0;">
+            Seleccioná un archivo .CSV con encabezados como: <code>name</code> (o <code>nombre</code>), <code>company</code>, <code>email</code>, <code>phone</code>, <code>status</code>, <code>source</code>, <code>owner</code>, <code>notes</code>.
+          </p>
+          <div class="field">
+            <label>Seleccionar archivo CSV</label>
+            <input type="file" id="csvFileInput" accept=".csv" required>
+          </div>
+          <div id="csvPreviewArea" style="display:none;max-height:180px;overflow-y:auto;background:var(--soft);padding:10px;border-radius:10px;font-size:12px;"></div>
+        </div>
+        `,
+        async () => {
+          const fileInput = document.getElementById('csvFileInput');
+          if (!fileInput || !fileInput.files.length) {
+            toast('Archivo requerido', 'Por favor seleccioná un archivo CSV.', 'warning');
+            return false;
+          }
+          const file = fileInput.files[0];
+          const text = await file.text();
+          const records = parseSimpleCsv(text);
+          if (!records.length) {
+            toast('CSV vacío', 'No se encontraron registros válidos en el archivo.', 'warning');
+            return false;
+          }
+
+          setLoading(true, `Importando ${records.length} contactos…`);
+          try {
+            const res = await api('importContacts', { records });
+            await loadData();
+            render();
+            toast('Importación exitosa', res.message, 'success');
+            return true;
+          } catch (err) {
+            toast('Error de importación', err.message, 'error');
+            return false;
+          } finally {
+            setLoading(false);
+          }
+        },
+        { submitLabel: 'Importar contactos' }
+      );
+
+      const fileInput = document.getElementById('csvFileInput');
+      const previewArea = document.getElementById('csvPreviewArea');
+      fileInput?.addEventListener('change', async () => {
+        if (!fileInput.files.length) return;
+        const text = await fileInput.files[0].text();
+        const records = parseSimpleCsv(text);
+        if (records.length) {
+          previewArea.style.display = 'block';
+          previewArea.innerHTML = `<strong>Vista previa (${records.length} contactos detectados):</strong><br>` +
+            records.slice(0, 3).map(r => `• ${esc(r.name || r.nombre || 'Sin nombre')} (${esc(r.company || r.empresa || 'Sin empresa')}) - ${esc(r.email || r.phone || '')}`).join('<br>');
+        }
+      });
+    }
+
+    function parseSimpleCsv(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length < 2) return [];
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
+      const records = [];
+      for (let i = 1; i < lines.length; i++) {
+        // Parse simple con split de coma respetando comillas básicas
+        const row = lines[i];
+        const values = [];
+        let inQuotes = false;
+        let token = '';
+        for (let j = 0; j < row.length; j++) {
+          const c = row[j];
+          if (c === '"') {
+            inQuotes = !inQuotes;
+          } else if (c === ',' && !inQuotes) {
+            values.push(token.trim().replace(/^["']|["']$/g, ''));
+            token = '';
+          } else {
+            token += c;
+          }
+        }
+        values.push(token.trim().replace(/^["']|["']$/g, ''));
+        const obj = {};
+        headers.forEach((h, idx) => {
+          if (values[idx] !== undefined) obj[h] = values[idx];
+        });
+        if (obj.name || obj.nombre) records.push(obj);
+      }
+      return records;
     }
 
     async function openAiModal(type, contactId) {
@@ -3265,6 +3413,8 @@
         if (actionButton) handleAction(actionButton.dataset.action);
         const jump = event.target.closest('[data-view-jump]');
         if (jump) openView(jump.dataset.viewJump);
+        const aiAssist = event.target.closest('[data-ai-assist]');
+        if (aiAssist) { openAiModal(aiAssist.dataset.aiAssist, aiAssist.dataset.contactId); return; }
         const viewContact = event.target.closest('[data-view-contact]');
         if (viewContact) { contactProfileModal(viewContact.dataset.viewContact); return; }
         const editContact = event.target.closest('[data-edit-contact]');
@@ -3455,6 +3605,60 @@
         item = save('quotes', { ...payload.data, quoteNumber: payload.data.id ? data.quotes.find(x => x.id === payload.data.id)?.quoteNumber : `COT-2026-${String(data.quotes.length + 1).padStart(4,'0')}`, subtotal, taxAmount, total: subtotal + taxAmount, itemsJson: JSON.stringify(items.map(x => ({...x,total:toNumber(x.quantity)*toNumber(x.price)}))), owner: state.user.name }, 'COT');
       }
       if (action === 'saveSeller') item = save('sellers', { ...payload.data, role: payload.data.role || 'seller' }, 'USR');
+      if (action === 'saveSettings') {
+        state.settings = { ...state.settings, ...(payload.settings || {}) };
+        return { ok: true, settings: state.settings };
+      }
+      if (action === 'runDailyAutomations') {
+        return { ok: true, quotesExpired: 1, oppsStaleCount: 1 };
+      }
+      if (action === 'installDailyTrigger') {
+        return { ok: true, message: 'Disparador simulado correctamente (modo local).' };
+      }
+      if (action === 'aiAssist') {
+        const contactName = payload.context?.contactName || 'Cliente';
+        const oppTitle = payload.context?.oppTitle || 'nuestra propuesta';
+        return {
+          ok: true,
+          result: `¡Hola ${contactName}! Te escribo para comentarte que estuvimos repasando los detalles de ${oppTitle}. ¿Tendrías 10 minutos esta semana para una breve llamada y definir el cronograma de inicio? Quedo a tu disposición.`
+        };
+      }
+      if (action === 'createBackup') {
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        return {
+          ok: true,
+          message: 'Copia de seguridad simulada en modo local.',
+          backupName: `CORE_3D_CRM_BACKUP_LOCAL_${ts}`,
+          backupUrl: '',
+          createdAt: new Date().toISOString()
+        };
+      }
+      if (action === 'exportCsv') {
+        const col = payload.collection || 'Contactos';
+        const items = data[col.toLowerCase()] || data.contacts || [];
+        const headers = Object.keys(items[0] || { id: 1, name: 'Demo' });
+        const lines = [headers.join(',')];
+        items.forEach(it => {
+          lines.push(headers.map(h => `"${String(it[h] || '').replace(/"/g, '""')}"`).join(','));
+        });
+        return {
+          ok: true,
+          collection: col,
+          filename: `CORE3D_${col}_DEMO.csv`,
+          csv: lines.join('\r\n'),
+          totalRows: items.length
+        };
+      }
+      if (action === 'importContacts') {
+        const records = payload.records || [];
+        records.forEach(r => save('contacts', r, 'CON'));
+        return {
+          ok: true,
+          imported: records.length,
+          skipped: 0,
+          message: `Se importaron ${records.length} contactos en modo demostración.`
+        };
+      }
       localStorage.setItem('nexo_demo_data', JSON.stringify(data));
       return { ok: true, item };
     }
