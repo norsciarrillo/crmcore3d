@@ -1882,7 +1882,7 @@
      * Si dejás el texto de ejemplo, la app funciona en modo demostración local
      * y no enviará solicitudes al backend ni guardará datos en Google Sheets.
      */
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylEXq_Oj0-XXIp3tzI-1r_MFMesncjkAHnRXBvgE4207lGCRlCVXkyaUBWrsQHembi/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzskBaNBzyFKbYfDRE7rb5Da2oY-kP4pcytQIWz-pQ/exec';
 
     const STAGES = ['Nuevo', 'Contactado', 'Propuesta', 'Negociación', 'Ganado'];
     const ALL_STAGES = [...STAGES, 'Perdido'];
@@ -2172,27 +2172,39 @@
 
     function render() {
       if (!state.user) return;
-      const meta = VIEW_META[state.view] || VIEW_META.dashboard;
-      $$('.nav-btn').forEach(button => button.classList.toggle('active', button.dataset.view === state.view));
-      $('#followBadge').textContent = pendingFollowUps().length;
-      const overdueAlerts = pendingFollowUps().filter(isOverdue).length;
-      const staleAlerts = staleOpportunities().length;
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const expiredAlerts = state.quotes.filter(q => q.validUntil && q.validUntil < todayStr && !['Aceptada', 'Rechazada'].includes(q.status)).length;
-      $('#alertDot').hidden = (overdueAlerts + staleAlerts + expiredAlerts) === 0;
-      document.title = `${meta[0]} · CORE 3D CRM`;
-      const views = {
-        dashboard: renderDashboard,
-        pipeline: renderPipeline,
-        contacts: renderContacts,
-        followups: renderFollowUps,
-        conversations: renderConversations,
-        quotes: renderQuotes,
-        sellers: renderSellers,
-        audit: renderAudit
-      };
-      el.main.innerHTML = (views[state.view] || views.dashboard)();
-      bindViewEvents();
+      try {
+        const meta = VIEW_META[state.view] || VIEW_META.dashboard;
+        $$('.nav-btn').forEach(button => button.classList.toggle('active', button.dataset.view === state.view));
+        const followBadge = $('#followBadge');
+        if (followBadge) followBadge.textContent = pendingFollowUps().length;
+        const overdueAlerts = pendingFollowUps().filter(isOverdue).length;
+        const staleAlerts = staleOpportunities().length;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const expiredAlerts = (state.quotes || []).filter(q => q.validUntil && q.validUntil < todayStr && !['Aceptada', 'Rechazada'].includes(q.status)).length;
+        const alertDot = $('#alertDot');
+        if (alertDot) alertDot.hidden = (overdueAlerts + staleAlerts + expiredAlerts) === 0;
+        document.title = `${meta[0]} · CORE 3D CRM`;
+        const views = {
+          dashboard: renderDashboard,
+          pipeline: renderPipeline,
+          contacts: renderContacts,
+          followups: renderFollowUps,
+          conversations: renderConversations,
+          quotes: renderQuotes,
+          sellers: renderSellers,
+          audit: renderAudit
+        };
+        const viewFn = views[state.view] || views.dashboard;
+        el.main.innerHTML = viewFn();
+        bindViewEvents();
+      } catch (renderError) {
+        console.error('Error durante el renderizado de la vista:', renderError);
+        el.main.innerHTML = `<div style="padding:40px 20px;text-align:center;">
+          <h2 style="color:var(--danger);">Error al dibujar el módulo</h2>
+          <p class="cell-muted">${esc(renderError.message)}</p>
+          <button class="btn btn-lime" onclick="openView('dashboard')">Volver al inicio</button>
+        </div>`;
+      }
     }
 
     function renderDashboard() {
