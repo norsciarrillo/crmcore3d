@@ -2069,7 +2069,10 @@
         await loadData();
         showApp();
       } catch (error) {
-        el.loginError.textContent = error.message;
+        console.error('Error durante el inicio de sesión:', error);
+        el.loginError.textContent = error.message || 'Error al iniciar sesión.';
+        el.login.hidden = false;
+        el.shell.hidden = true;
       } finally {
         button.disabled = false;
         button.innerHTML = '<span>Ingresar al CRM</span><i class="bi bi-arrow-right"></i>';
@@ -2119,21 +2122,34 @@
     }
 
     function showApp() {
-      el.login.hidden = true;
-      el.shell.hidden = false;
-      const name = state.user?.name || 'Usuario';
-      $('#sidebarUser').textContent = name;
-      const roleMap = { admin: 'Administrador', supervisor: 'Supervisor', seller: 'Vendedor', readonly: 'Solo lectura' };
-      $('#sidebarRole').textContent = roleMap[state.user?.role] || 'Vendedor';
-      $('#sidebarAvatar').textContent = initials(name);
-      $('#topAvatar').textContent = initials(name);
-      const canAudit = state.user?.role === 'admin' || state.user?.role === 'supervisor';
-      const navAudit = $('#navAudit');
-      if (navAudit) navAudit.hidden = !canAudit;
-      const hour = new Date().getHours();
-      $('#greeting').textContent = `${hour < 12 ? 'Buen día' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'}, ${name.split(' ')[0]}`;
-      $('#todayLabel').textContent = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
-      render();
+      try {
+        el.login.hidden = true;
+        el.shell.hidden = false;
+        const name = state.user?.name || 'Usuario';
+        const sidebarUser = $('#sidebarUser');
+        if (sidebarUser) sidebarUser.textContent = name;
+        const roleMap = { admin: 'Administrador', supervisor: 'Supervisor', seller: 'Vendedor', readonly: 'Solo lectura' };
+        const sidebarRole = $('#sidebarRole');
+        if (sidebarRole) sidebarRole.textContent = roleMap[state.user?.role] || 'Vendedor';
+        const sidebarAvatar = $('#sidebarAvatar');
+        if (sidebarAvatar) sidebarAvatar.textContent = initials(name);
+        const topAvatar = $('#topAvatar');
+        if (topAvatar) topAvatar.textContent = initials(name);
+        const canAudit = state.user?.role === 'admin' || state.user?.role === 'supervisor';
+        const navAudit = $('#navAudit');
+        if (navAudit) navAudit.hidden = !canAudit;
+        const hour = new Date().getHours();
+        const greeting = $('#greeting');
+        if (greeting) greeting.textContent = `${hour < 12 ? 'Buen día' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'}, ${name.split(' ')[0]}`;
+        const todayLabel = $('#todayLabel');
+        if (todayLabel) todayLabel.textContent = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+        render();
+      } catch (err) {
+        console.error('Error al mostrar la aplicación:', err);
+        el.login.hidden = false;
+        el.shell.hidden = true;
+        toast('Error al cargar la vista', err.message, 'error');
+      }
     }
 
     async function logout(callApi = true) {
