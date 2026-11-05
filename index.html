@@ -1852,14 +1852,14 @@
     .timeline-head strong,
     .stage-select-mobile,
     .modal-close {
-      transition-property: background-color, border-color, color, fill, stroke, box-shadow;
-      transition-duration: 450ms;
-      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      transition-property: background-color, border-color, color, fill, stroke, box-shadow, background;
+      transition-duration: 550ms;
+      transition-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1);
     }
     input, select, textarea {
-      transition-property: background-color, border-color, color, box-shadow, fill, stroke;
-      transition-duration: 450ms;
-      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      transition-property: background-color, border-color, color, box-shadow, fill, stroke, background;
+      transition-duration: 550ms;
+      transition-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1);
     }
 
     /* Error 8 corregido: paleta y superficies que se veían mal al activar el modo oscuro. */
@@ -2050,7 +2050,7 @@
     };
     const TAG_PALETTE = {
       Nuevo: '#b9a7f7', Contactado: '#72b7ff', Propuesta: '#ffc66f', Negociación: '#ff9c8d', Ganado: '#7ed89f', Perdido: '#d2cfd9',
-      Prospecto: '#f0a128', Cliente: '#37a66b', Inactivo: '#8f8ca3',
+      Prospecto: '#6374e7', Cliente: '#37a66b', Inactivo: '#e35162',
       Llamada: '#6374e7', Email: '#37a66b', WhatsApp: '#25D366', 'Reunión': '#f0a128', Nota: '#b9a7f7', Sistema: '#8f8ca3',
       Saliente: '#6374e7', Entrante: '#37a66b',
       Borrador: '#8f8ca3', Enviada: '#72b7ff', Aceptada: '#37a66b', Rechazada: '#e35162', Vencida: '#e35162'
@@ -2381,8 +2381,7 @@
         `Todo bajo control, ${esc((state.user.name || '').split(' ')[0])}`,
         'Priorizá oportunidades, pronósticos y seguimientos desde un único panel comercial.',
         `<button class="btn btn-white" data-action="new-followup"><i class="bi bi-calendar-plus"></i> Seguimiento</button>
-         <button class="btn btn-lime" data-action="new-opportunity"><i class="bi bi-plus-lg"></i> Oportunidad</button>
-         ${state.user.role === 'admin' ? `<button class="btn btn-white" data-action="manage-ai"><i class="bi bi-brain"></i> Conexión IA</button>` : ''}`
+         <button class="btn btn-lime" data-action="new-opportunity"><i class="bi bi-plus-lg"></i> Oportunidad</button>`
       ) + `
       <section class="metric-grid">
         ${metricCard('Pipeline activo', money(pipelineValue, 'ARS', true), `${open.length} oportunidades abiertas`, 'funnel', '#efeaff')}
@@ -2557,12 +2556,12 @@
             <td><div class="person" data-view-contact="${attr(item.id)}" style="cursor:pointer;" title="Ver ficha 360°"><span class="avatar">${initials(item.name)}</span><div><strong>${esc(item.name)}</strong><span>${esc(item.company || item.email || 'Sin empresa')}</span></div></div></td>
             <td>${tagHtml(item.status, item.status === 'Inactivo' ? '' : 'lime')}</td>
             <td class="cell-muted">${item.phone ? `<a href="https://wa.me/${String(item.phone).replace(/\D/g, '')}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;color:var(--success);text-decoration:none;font-weight:600;"><i class="bi bi-whatsapp"></i> ${esc(item.phone)}</a>` : '—'}</td><td>${esc(item.owner || '—')}</td><td class="cell-muted">${localDate(item.updatedAt)}</td>
-            <td><div class="row-actions"><button class="icon-action" data-view-contact="${attr(item.id)}" title="Ver ficha 360°"><i class="bi bi-person-badge"></i></button><button class="icon-action" data-add-conversation="${attr(item.id)}" title="Registrar conversación"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}" title="Editar"><i class="bi bi-pencil"></i></button></div></td>
+            <td><div class="row-actions"><button class="icon-action" data-view-contact="${attr(item.id)}" title="Ver ficha 360°"><i class="bi bi-person-badge"></i></button><button class="icon-action" data-add-conversation="${attr(item.id)}" title="Registrar conversación"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}" title="Editar"><i class="bi bi-pencil"></i></button><button class="icon-action" data-delete-contact="${attr(item.id)}" title="Eliminar contacto"><i class="bi bi-trash"></i></button></div></td>
           </tr>`).join('')}</tbody>
         </table></div>
         <div class="mobile-records">${contacts.map(item => `<article class="mobile-record">
           <div class="mobile-record-head"><div><h3 style="cursor:pointer;" data-view-contact="${attr(item.id)}">${esc(item.name)}</h3><p>${esc(item.company || item.email || 'Sin empresa')}</p></div>${tagHtml(item.status, item.status === 'Inactivo' ? '' : 'lime')}</div>
-          <div class="mobile-record-meta"><span class="cell-muted" style="font-size:9px"><i class="bi bi-person"></i> ${esc(item.owner || 'Sin asignar')}</span>${item.phone ? `<a href="https://wa.me/${String(item.phone).replace(/\D/g, '')}" target="_blank" rel="noopener" style="color:var(--success);text-decoration:none;font-size:11px;font-weight:700;"><i class="bi bi-whatsapp"></i> WhatsApp</a>` : ''}<div class="row-actions"><button class="icon-action" data-view-contact="${attr(item.id)}" title="Ver ficha 360°"><i class="bi bi-person-badge"></i></button><button class="icon-action" data-add-conversation="${attr(item.id)}"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}"><i class="bi bi-pencil"></i></button></div></div>
+          <div class="mobile-record-meta"><span class="cell-muted" style="font-size:9px"><i class="bi bi-person"></i> ${esc(item.owner || 'Sin asignar')}</span>${item.phone ? `<a href="https://wa.me/${String(item.phone).replace(/\D/g, '')}" target="_blank" rel="noopener" style="color:var(--success);text-decoration:none;font-size:11px;font-weight:700;"><i class="bi bi-whatsapp"></i> WhatsApp</a>` : ''}<div class="row-actions"><button class="icon-action" data-view-contact="${attr(item.id)}" title="Ver ficha 360°"><i class="bi bi-person-badge"></i></button><button class="icon-action" data-add-conversation="${attr(item.id)}"><i class="bi bi-chat-left-text"></i></button><button class="icon-action" data-edit-contact="${attr(item.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action" data-delete-contact="${attr(item.id)}"><i class="bi bi-trash"></i></button></div></div>
         </article>`).join('')}</div>` : emptyState('people', 'Todavía no hay contactos', 'Creá tu primer contacto para empezar a organizar oportunidades y conversaciones.', 'new-contact', 'Crear contacto')}
       </section>`;
     }
@@ -2604,6 +2603,15 @@
       </div>`;
     }
 
+    function entryColor(value, fallback = '#b9a7f7') {
+      const palette = ['#b9a7f7', '#72b7ff', '#ffc66f', '#ff9c8d', '#7ed89f', '#6374e7', '#25D366', '#f0a128', '#37a66b', '#e35162', '#8d9bff', '#d9f26b'];
+      const str = String(value || '');
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) % 9973;
+      const color = palette[hash % palette.length];
+      return { bg: color + '22', fg: color };
+    }
+
     function renderConversations() {
       const items = state.conversations.filter(item => {
         const contact = contactById(item.contactId);
@@ -2624,7 +2632,7 @@
           <div class="timeline-body">
             <div class="timeline-head"><strong>${esc(contact?.name || item.channel)}</strong><time>${localDateTime(item.createdAt)}</time></div>
             <p>${esc(item.summary)}</p>
-            <div class="timeline-meta">${tagHtml(item.channel)}${tagHtml(item.direction)}${opp ? tagHtml(opp.title, 'lime') : ''}${tagHtml(item.owner)}</div>
+            <div class="timeline-meta">${(() => { const tg = (v, tone = '') => { const c = entryColor(v); return `<span class="tag ${tone}" style="background:${c.bg};color:${c.fg};border:1px solid ${c.fg}55;">${esc(v)}</span>`; }; return tg(item.channel) + tg(item.direction) + (opp ? tg(opp.title, 'lime') : '') + tg(item.owner); })()}</div>
           </div>
         </article>`;
       }).join('')}</div>` : emptyState('chat-left-text', 'Sin conversaciones registradas', 'Guardá el resumen de una llamada, reunión o mensaje para mantener el contexto.', 'new-conversation', 'Registrar conversación')}</section>`;
@@ -2776,7 +2784,7 @@
       el.modal.innerHTML = `<div class="modal-backdrop" role="presentation">
         <section class="modal ${options.wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
           <header class="modal-head"><div><h2 id="modalTitle">${esc(title)}</h2><p>${esc(subtitle || '')}</p></div><button class="modal-close" type="button" data-close-modal aria-label="Cerrar"><i class="bi bi-x-lg"></i></button></header>
-          <form id="modalForm"><div class="modal-body">${body}</div><footer class="modal-foot"><button class="btn btn-white" type="button" data-close-modal>Cancelar</button><button class="btn btn-lime" type="submit"><i class="bi bi-check2"></i> ${esc(options.submitLabel || 'Guardar')}</button></footer></form>
+          <form id="modalForm"><div class="modal-body">${body}</div><footer class="modal-foot">${options.hideCancel ? '' : '<button class="btn btn-white" type="button" data-close-modal>Cancelar</button>'}<button class="btn btn-lime" type="submit"><i class="bi bi-check2"></i> ${esc(options.submitLabel || 'Guardar')}</button></footer></form>
         </section>
       </div>`;
       const backdrop = $('.modal-backdrop', el.modal);
@@ -3069,6 +3077,32 @@
       );
     }
 
+    function deleteContact(id) {
+      const item = state.contacts.find(c => c.id === id);
+      if (!item) return;
+      if (!confirm(`¿Eliminar el contacto ${item.name}${item.company ? ` (${item.company})` : ''}? Esta acción no se puede deshacer.`)) return;
+      state.contacts = state.contacts.filter(c => c.id !== id);
+      if (state._demoData) {
+        state._demoData.contacts = state.contacts;
+        try { localStorage.setItem('nexo_demo_data', JSON.stringify(state._demoData)); } catch (_) {}
+      }
+      render();
+      toast('Contacto eliminado', `${item.name} se removió del CRM.`, 'success');
+    }
+
+    function deleteConversation(id) {
+      const item = state.conversations.find(c => c.id === id);
+      if (!item) return;
+      if (!confirm('¿Eliminar esta conversación del historial?')) return;
+      state.conversations = state.conversations.filter(c => c.id !== id);
+      if (state._demoData) {
+        state._demoData.conversations = state.conversations;
+        try { localStorage.setItem('nexo_demo_data', JSON.stringify(state._demoData)); } catch (_) {}
+      }
+      render();
+      toast('Conversación eliminada', 'El registro quedó eliminado del historial.', 'success');
+    }
+
     function opportunityModal(id = '') {
       const item = opportunityById(id) || {};
       openModal(item.id ? 'Editar oportunidad' : 'Nueva oportunidad', 'Definí el negocio y su próximo objetivo.', `
@@ -3181,16 +3215,17 @@
         `
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            ${tagHtml(item.channel)}${tagHtml(item.direction)}${opp ? tagHtml(opp.title, 'lime') : ''}${tagHtml(item.owner)}
+            ${(() => { const tg = (v, tone = '') => { const c = entryColor(v); return `<span class="tag ${tone}" style="background:${c.bg};color:${c.fg};border:1px solid ${c.fg}55;">${esc(v)}</span>`; }; return tg(item.channel) + tg(item.direction) + (opp ? tg(opp.title, 'lime') : '') + tg(item.owner); })()}
           </div>
           <div style="background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:14px;">
             <strong style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Resumen</strong>
             <p style="margin:6px 0 0;font-size:13px;line-height:1.6;white-space:pre-line;">${esc(item.summary)}</p>
           </div>
           ${item.image ? `<div><strong style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Captura</strong><img src="${esc(item.image)}" alt="Captura de la conversación" style="margin-top:8px;width:100%;border-radius:12px;border:1px solid var(--line);" /></div>` : ''}
+          <button type="button" class="btn btn-white" data-delete-conversation="${attr(item.id)}" style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><i class="bi bi-trash"></i> Eliminar conversación</button>
         </div>`,
         () => closeModal(),
-        { submitLabel: 'Cerrar', wide: true }
+        { submitLabel: 'Cerrar', wide: true, hideCancel: true }
       );
     }
 
@@ -3339,9 +3374,9 @@
         <div style="max-width:820px;margin:0 auto;padding:26px 20px 0;">
           <div style="display:flex;align-items:center;gap:12px;">
             <span style="display:inline-flex;width:46px;height:46px;border-radius:12px;background:#efffc8;align-items:center;justify-content:center;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#151615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="15" x2="9" x2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#151615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="15" x2="9" y2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
             </span>
-            <div><strong style="display:block;font-size:16px;">${esc(state.settings.companyName || 'CORE 3D')}</strong><span style="display:block;font-size:9px;color:#8f8a9e;text-transform:uppercase;letter-spacing:.14em;margin-top:2px;">Comprobante / Cotización</span></div>
+            <div><strong style="display:block;font-size:16px;">${esc(state.settings.companyName || 'CORE 3D S.A.S.')}</strong><span style="display:block;font-size:9px;color:#8f8a9e;text-transform:uppercase;letter-spacing:.14em;margin-top:2px;">Comprobante / Cotización</span></div>
           </div>
         </div>
         <div class="sheet">
@@ -3389,6 +3424,27 @@
           </div>
           <div class="total"><div class="box"><div class="row"><span>Subtotal</span><strong>${money(quote.subtotal, quote.currency)}</strong></div><div class="row"><span>Impuestos (${toNumber(quote.taxRate)}%)</span><strong>${money(quote.taxAmount, quote.currency)}</strong></div><div class="row grand"><span>Total</span><strong>${money(quote.total, quote.currency)}</strong></div></div></div>
           ${quote.notes ? `<div class="notes"><span>Notas</span><p>${esc(quote.notes)}</p></div>` : ''}
+          <div style="margin-top:28px;">
+            <div style="display:flex;align-items:flex-end;gap:22px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29" width="96" height="96" style="background:#fff;border:1px solid #ece8f2;border-radius:8px;">
+                <rect width="29" height="29" fill="#fff"></rect>
+                <g fill="#151615">
+                  <rect x="2" y="2" width="7" height="7"></rect>
+                  <rect x="20" y="2" width="7" height="7"></rect>
+                  <rect x="2" y="20" width="7" height="7"></rect>
+                  <rect x="13" y="13" width="7" height="7"></rect>
+                  <rect x="13" y="2" width="3" height="3"></rect>
+                  <rect x="20" y="13" width="3" height="3"></rect>
+                  <rect x="2" y="13" width="3" height="3"></rect>
+                  <rect x="22" y="20" width="3" height="3"></rect>
+                </g>
+              </svg>
+              <div>
+                <span style="display:block;font-size:9px;font-weight:800;color:#8f8a9e;text-transform:uppercase;letter-spacing:.12em;">Código QR · Comprobante</span>
+                <span style="display:block;margin-top:4px;font-size:10px;color:#6f6a80;">Escanear con la app de AFIP para validar el comprobante.</span>
+              </div>
+            </div>
+          </div>
         </div>
         </div>
       <button class="print" onclick="window.print()">Imprimir / Guardar PDF</button>
@@ -3873,6 +3929,10 @@
         if (editQuote) quoteModal(editQuote.dataset.editQuote);
         const print = event.target.closest('[data-print-quote]');
         if (print) printQuote(print.dataset.printQuote);
+        const delContact = event.target.closest('[data-delete-contact]');
+        if (delContact) { deleteContact(delContact.dataset.deleteContact); return; }
+        const delConvo = event.target.closest('[data-delete-conversation]');
+        if (delConvo) { deleteConversation(delConvo.dataset.deleteConversation); return; }
         const complete = event.target.closest('[data-complete]');
         if (complete) mutate('completeFollowUp', { id: complete.dataset.complete, completed: true }, 'Seguimiento completado');
         const installButton = event.target.closest('#installButton');
