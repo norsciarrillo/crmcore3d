@@ -2945,7 +2945,7 @@
           <div class="metric-foot"><i class="bi bi-graph-down-arrow"></i>&nbsp;Valor perdido: <strong>${money(stats.lostValue, 'ARS', true)}</strong></div>
         </article>
         <article class="metric-card" style="--metric-accent: var(--lavender-2);">
-          <div class="metric-top"><span class="metric-label">Tasa de conversión</span><span class="metric-icon"><i class="bi bi-pie-chart-half"></i></span></div>
+          <div class="metric-top"><span class="metric-label">Tasa de conversión</span><span class="metric-icon"><i class="bi bi-pie-chart"></i></span></div>
           <div class="metric-value">${stats.conversion}%</div>
           <div class="metric-foot"><i class="bi bi-arrow-left-right"></i>&nbsp;${stats.won.length} ganadas de ${stats.closedCount} cierres</div>
         </article>
@@ -3054,7 +3054,7 @@
       return pageHead(
         'CORE 3D CRM IA',
         'Conectá el CRM a OpenAI, Gemini o un proveedor externo y usá el asistente sobre tu pipeline real.',
-        `<button class="btn btn-white" data-ai-action="test-connection"><i class="bi bi-plug-charge"></i> Probar conexión</button>`
+        `<button class="btn btn-white" data-ai-action="test-connection"><i class="bi bi-plug"></i> Probar conexión</button>`
       ) + `
       <div class="ai-grid">
         <section class="panel" aria-label="Estado de la conexión con IA">
@@ -3779,7 +3779,7 @@
         'Centro de Alertas y Notificaciones',
         `${totalAlerts} avisos prioritarios de gestión comercial`,
         `
-        <div style="display:flex;flex-direction:column;gap:14px;max-height:65vh;overflow-y:auto;">
+        <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="install-card announcement">
             <strong>Instalá CORE 3D CRM</strong>
             <span>Accedé como una app desde tu celular o computadora. Instalá y usá el CRM desde tu pantalla de inicio.</span>
@@ -4156,8 +4156,8 @@
         header{background:linear-gradient(135deg,#151615 0%,#2b2740 100%);color:#fff;padding:30px 34px;display:flex;justify-content:space-between;gap:20px;align-items:center}
         .brand{display:flex;align-items:center;gap:12px}
         .brand-mark{width:42px;height:42px;border-radius:12px 12px 12px 4px;background:#c5ee15;display:grid;place-items:center}
-        .brand strong{display:block;font-size:20px;letter-spacing:-.5px}
-        .brand span{display:block;font-size:9px;color:#b9b4c9;text-transform:uppercase;letter-spacing:.14em;margin-top:2px}
+        .brand > div strong{display:block;font-size:20px;letter-spacing:-.5px}
+        .brand > div span{display:block;font-size:9px;color:#b9b4c9;text-transform:uppercase;letter-spacing:.14em;margin-top:2px}
         .doc-title{text-align:right}
         .doc-title strong{display:block;font-size:16px}
         .doc-title span{display:block;font-size:11px;color:#b9b4c9;margin-top:3px}
